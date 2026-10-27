@@ -115,7 +115,9 @@
 - อัปเดตล่าสุด: 2026-10-27
 - งานล่าสุดที่ทำเสร็จ: เก็บ requirement · ภาพจำลอง `mockups/wireframe.html` · สร้าง CLAUDE.md / project.md / memory.md / .claude/ · ติดตั้ง Rokit 1.2.0 + Rojo 7.7.1 (`rokit.toml`) + ปลั๊กอิน Rojo ใน Studio · heightmap เขางู `map-assets/khaongu-heightmap.png` (14–95 ม.) · สมุด `docs/map-log.md`
 - งานล่าสุด (เพิ่ม): โครง Rojo (`default.project.json`, `src/`) · `Config.luau` รวมตัวเลขเกม · ระบบเซฟ `PlayerData` (ล็อกกันเซิร์ฟเวอร์ซ้อน · โหมดทดสอบ Studio ไม่เซฟ) · ร้านปืน/แลกขนม `Shop` (เซิร์ฟเวอร์ตรวจ) · ผ่าน auditor + แก้แล้ว · rojo build ผ่าน · git init + commit ในเครื่อง (ยังไม่ขึ้น GitHub)
+- งานล่าสุด (ชุด 2): วางจุดสำคัญบนแมพด้วย `tools/place-markers.luau` (Workspace.MapMarkers: Kuti, Nest1–4, RocketPad) · โค้ด PlayerHealth (ล้ม/ชุบ/ตาย) · Combat (ปืน BB 3 แบบ ประทัด ไม้กวด) · HUD + ปุ่มมือถือ · ลิง (Monkeys.luau เดินวนรัง ไล่ตี เรียกพวก จมหาย) · ผ่าน auditor + แก้ครบ 10 ข้อ · rojo build ผ่าน · **ยังไม่ได้ลองเล่นใน Studio**
 - งานต่อไป:
+  0. เจ้าของลองโค้ดชุด 2 ใน Studio: Play · Start Server 2 คน (ยิงเพื่อน/ล้ม/ชุบ) · Device Emulator มือถือ · ตอบ 2 คำถาม: ประทัดโดนตัวเองไหม · ลิงตีคนล้มได้ไหม
   1. ~~นำ heightmap เข้า Studio~~ เสร็จแล้ว 2026-10-27 (ภูเขาขึ้นรูปแล้ว) · ต่อไป: ทาสีหน้าผา/ลานหิน · วางตำแหน่งกุฏิ รังลิง ฐานบั้งไฟ · กั้นขอบแมพ
   2. ~~ลองซิงก์ Rojo + Play~~ ผ่านแล้ว 2026-10-27 (experience ใหม่ของ gamjamxxx · Output: `Money = 0 Snacks = 0 Guns = BBPistol`) — เหลือ: เปิด Enable Studio Access to API Services แล้วลอง Play อีกรอบให้เซฟจริง
   3. ขออนุญาตดาวน์โหลด Selene + StyLua แล้วรัน lint ครั้งแรก
@@ -124,3 +126,5 @@
   - ตัวเลขที่ "ยังไม่ระบุ" ใส่ค่าชั่วคราวใน Config แล้ว (เงินต่อลิง 5 · รางวัลภารกิจ 200 · ขาดของได้ ×0.5 · ฟื้นเลือด 2/วิ หลังไม่โดนตี 5 วิ · ลิงตีทุก 1.5 วิ · ยิง/วิ ปืนพก 3 ลูกซอง 1 ปืนกล 10 · แม็กลูกซอง 6 · วงประทัด 12 stud · ไม้กวด 0.6 วิ) — ให้เจ้าของปรับตอนทดสอบ
   - `Shop.isInLobby` ยังคืน true เสมอ — ต้องผูกกับระบบห้องรอ/ภารกิจก่อนเปิดภารกิจ ไม่งั้นซื้อ/แลกกลางภารกิจได้
   - ยังไม่ได้ lint (ทดสอบ Play ใน Studio ผ่านแล้วแบบไม่เซฟ)
+  - ประทัดเติมครั้งเดียวต่อการเข้าเซิร์ฟเวอร์ จนกว่าระบบภารกิจจะเรียก `Combat.refillFirecrackers`
+  - ต้นกระสุนอ่านจากหัวตัวละครที่ client คุมฟิสิกส์ — ควรเสนอ security-auditor ก่อน Publish

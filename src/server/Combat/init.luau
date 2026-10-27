@@ -7,7 +7,6 @@ local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -15,6 +14,7 @@ local Remotes = require(script.Parent.Remotes)
 local RateLimit = require(script.Parent.RateLimit)
 local PlayerHealth = require(script.Parent.PlayerHealth)
 local PlayerData = require(script.Parent.PlayerData)
+local Monkeys = require(script.Parent.Monkeys)
 
 local CombatCfg = Config.Combat
 
@@ -48,7 +48,7 @@ local Combat = {}
 local loadouts: { [Player]: Loadout } = {}
 local stateEvent: RemoteEvent? = nil
 local fxEvent: RemoteEvent? = nil
-local monkeysModule: any = nil
+local firecrackersLeft: { [Player]: number } = {} -- ประทัดที่เหลือต่อผู้เล่น (ต่อเซิร์ฟเวอร์ ไม่เซฟ) เกิดใหม่ไม่เติมคืน
 
 -- ===== ตัวช่วยตรวจค่าจาก client =====
 
@@ -182,22 +182,8 @@ local function resolveHit(inst: Instance): (Model?, Player?)
 end
 
 local function damageMonkey(model: Model, amount: number, attacker: Player)
-	-- require ตอนใช้ (ไม่ใช่ตอนโหลดโมดูล) เผื่อไฟล์ลิงยังไม่มี
-	if monkeysModule == nil then
-		local server = ServerScriptService:FindFirstChild("Server")
-		local moduleScript = if server ~= nil then server:FindFirstChild("Monkeys") else nil
-		if moduleScript == nil or not moduleScript:IsA("ModuleScript") then
-			return
-		end
-		local ok, result = pcall(require, moduleScript)
-		if not ok then
-			warn("[Combat] โหลด Monkeys ไม่ได้:", result)
-			return
-		end
-		monkeysModule = result
-	end
 	local ok, err = pcall(function()
-		monkeysModule.damageMonkey(model, amount, attacker)
+		Monkeys.damageMonkey(model, amount, attacker)
 	end)
 	if not ok then
 		warn("[Combat] damageMonkey error:", err)
@@ -388,6 +374,7 @@ local function onThrow(player: Player, rawDir: any)
 	end
 	loadout.lastThrow = now
 	loadout.firecrackers -= 1
+	firecrackersLeft[player] = loadout.firecrackers
 
 	-- ชิ้นประทัดจริงอยู่ที่เซิร์ฟเวอร์ (เซิร์ฟเวอร์เป็นเจ้าของฟิสิกส์)
 	local part = Instance.new("Part")
@@ -496,12 +483,18 @@ end
 -- ===== เกิดใหม่ =====
 
 local function resetLoadout(player: Player, character: Model)
+	-- เข้าเกมครั้งแรกเติมเต็ม · เกิดใหม่หลังตายใช้จำนวนที่เหลือ (ไม่ได้ประทัดคืน)
+	local remaining = firecrackersLeft[player]
+	if remaining == nil then
+		remaining = Config.Firecracker.PerPlayer
+		firecrackersLeft[player] = remaining
+	end
 	local loadout: Loadout = {
 		character = character,
 		slot = SLOT_GUN,
 		gunId = nil,
 		ammo = {},
-		firecrackers = Config.Firecracker.PerPlayer, -- TODO(ชุดถัดไป): ตอนนี้เติมทุกครั้งที่เกิด ควรเติมเฉพาะตอนเริ่มภารกิจ
+		firecrackers = remaining,
 		reloadEndsAt = 0,
 		reloadToken = 0,
 		lastFire = 0,
@@ -550,6 +543,16 @@ function Combat.setCarrying(player: Player, carrying: boolean)
 	pushState(player, loadout)
 end
 
+-- ระบบภารกิจเรียกตอนเริ่มภารกิจ: เติมประทัดให้ครบ (TODO: ผูกกับระบบภารกิจชุดถัดไป)
+function Combat.refillFirecrackers(player: Player)
+	firecrackersLeft[player] = Config.Firecracker.PerPlayer
+	local loadout = loadouts[player]
+	if loadout ~= nil then
+		loadout.firecrackers = Config.Firecracker.PerPlayer
+		pushState(player, loadout)
+	end
+end
+
 function Combat.init()
 	stateEvent = Remotes.remoteEvent("CombatState") -- server → เจ้าของ
 	fxEvent = Remotes.remoteEvent("CombatFx") -- server → ทุกคน (เส้นกระสุน)
@@ -567,6 +570,7 @@ function Combat.init()
 	end
 	Players.PlayerRemoving:Connect(function(player: Player)
 		loadouts[player] = nil
+		firecrackersLeft[player] = nil
 	end)
 end
 

@@ -102,7 +102,7 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 		local bestAngle = math.rad(Config.Hud.AimAssistDegrees)
 		local bestDir: Vector3? = nil
 		for _, inst in CollectionService:GetTagged("Monkey") do
-			if inst:IsA("Model") then
+			if inst:IsA("Model") and inst:GetAttribute("Dead") ~= true then -- ข้ามซาก
 				local toMonkey = inst:GetPivot().Position - origin
 				local dist = toMonkey.Magnitude
 				if dist > 0.5 and dist <= Config.Hud.AimAssistRange then
@@ -135,7 +135,13 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 		end
 		local screenPoint: Vector2
 		if usingTouch then
-			screenPoint = camera.ViewportSize / 2
+			-- ใช้กลางครอสแฮร์จริง (พิกัดเดียวกับ viewport เพราะ Hud ตั้ง IgnoreGuiInset = true)
+			local ch = hud.crosshair
+			if ch.AbsoluteSize.X > 0 then
+				screenPoint = ch.AbsolutePosition + ch.AbsoluteSize / 2
+			else
+				screenPoint = camera.ViewportSize / 2
+			end
 		else
 			screenPoint = UserInputService:GetMouseLocation()
 		end
@@ -318,8 +324,12 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 
 	-- ===== คีย์บอร์ด/เมาส์ (คอม) =====
 	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
-		usingTouch = input.UserInputType == Enum.UserInputType.Touch
-			or (usingTouch and input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Keyboard and input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.MouseButton2)
+		-- จำว่าอินพุตล่าสุดเป็นนิ้วหรือเมาส์ (ไว้เลือกว่าเล็งจากกลางจอหรือตำแหน่งเมาส์)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			usingTouch = true
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Keyboard then
+			usingTouch = false
+		end
 		if processed then
 			return
 		end
@@ -410,15 +420,27 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 		end
 	end)
 
+	-- cache ค่าเดิม ไม่เขียน Text/property ซ้ำทุกเฟรม (ประหยัดเครื่องมือถือ)
+	local lastHp, lastMaxHp = -1, -1
+	local lastOverlayKey = ""
+	local lastLabelKey = ""
+	local lastAmmoKey = ""
+	local lastThrowEnabled: boolean? = nil
+	local lastCrosshair: boolean? = nil
+	local lastContext: boolean? = nil
+	local lastProgress: number? = nil
+	local lastProgressText = ""
+
 	RunService.RenderStepped:Connect(function()
 		local character, humanoid = ownCharacter()
 		local stateName = ownStateName()
 
-		if humanoid ~= nil then
-			hud.setHealth(humanoid.Health, humanoid.MaxHealth)
+		if humanoid ~= nil and (humanoid.Health ~= lastHp or humanoid.MaxHealth ~= lastMaxHp) then
+			lastHp, lastMaxHp = humanoid.Health, humanoid.MaxHealth
+			hud.setHealth(lastHp, lastMaxHp)
 		end
 
-		-- จอล้ม / ตาย
+		-- จอล้ม / ตาย (ยังไม่มีตัวละคร = ไม่ขึ้นจอ "ตายแล้ว")
 		local remaining = 0
 		if character ~= nil then
 			local endsAt = character:GetAttribute("StateEndsAt")
@@ -426,39 +448,60 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 				remaining = endsAt - Workspace:GetServerTimeNow()
 			end
 		end
-		hud.setOverlay(stateName, remaining)
+		local overlayKind = if character == nil then "Alive" else stateName
+		local overlayKey = overlayKind .. ":" .. math.max(0, math.ceil(remaining))
+		if overlayKey ~= lastOverlayKey then
+			lastOverlayKey = overlayKey
+			hud.setOverlay(overlayKind, remaining)
+		end
 		if stateName ~= "Alive" and aiming then
 			setAiming(false)
 		end
 
 		-- แถบอาวุธ + กระสุน
 		local gun = currentGunDef()
-		local labels = {
-			if gun ~= nil then gun.displayName else slotNames[1],
-			slotNames[2] .. " ×" .. combat.firecrackers,
-			slotNames[3],
-		}
-		hud.setSlotLabels(labels, combat.slot)
-		local ammoText: string
-		if combat.slot == SLOT_GUN then
-			if combat.reloadEndsAt ~= 0 then
-				ammoText = "กำลังเปลี่ยนแม็ก…"
-			else
-				ammoText = combat.ammo .. " / " .. combat.magSize
-			end
-			ammoText ..= "  ·  ประทัด ×" .. combat.firecrackers
-		elseif combat.slot == SLOT_FIRECRACKER then
-			ammoText = "ประทัด ×" .. combat.firecrackers
-		else
-			ammoText = "ไม้กวด ใช้ได้ไม่จำกัด"
+		local gunName = if gun ~= nil then gun.displayName else slotNames[1]
+		local labelKey = gunName .. "|" .. combat.firecrackers .. "|" .. combat.slot
+		if labelKey ~= lastLabelKey then
+			lastLabelKey = labelKey
+			hud.setSlotLabels({ gunName, slotNames[2] .. " ×" .. combat.firecrackers, slotNames[3] }, combat.slot)
 		end
-		hud.setAmmoText(ammoText)
-		hud.setThrowEnabled(combat.firecrackers > 0 and stateName == "Alive")
-		hud.crosshair.Visible = stateName == "Alive"
+		local ammoKey = combat.slot .. "|" .. combat.ammo .. "|" .. combat.magSize .. "|" .. combat.firecrackers .. "|" .. tostring(combat.reloadEndsAt ~= 0)
+		if ammoKey ~= lastAmmoKey then
+			lastAmmoKey = ammoKey
+			local ammoText: string
+			if combat.slot == SLOT_GUN then
+				if combat.reloadEndsAt ~= 0 then
+					ammoText = "กำลังเปลี่ยนแม็ก…"
+				else
+					ammoText = combat.ammo .. " / " .. combat.magSize
+				end
+				ammoText ..= "  ·  ประทัด ×" .. combat.firecrackers
+			elseif combat.slot == SLOT_FIRECRACKER then
+				ammoText = "ประทัด ×" .. combat.firecrackers
+			else
+				ammoText = "ไม้กวด ใช้ได้ไม่จำกัด"
+			end
+			hud.setAmmoText(ammoText)
+		end
+		local throwEnabled = combat.firecrackers > 0 and stateName == "Alive"
+		if throwEnabled ~= lastThrowEnabled then
+			lastThrowEnabled = throwEnabled
+			hud.setThrowEnabled(throwEnabled)
+		end
+		local crosshairVisible = stateName == "Alive"
+		if crosshairVisible ~= lastCrosshair then
+			lastCrosshair = crosshairVisible
+			hud.crosshair.Visible = crosshairVisible
+		end
 
 		-- ปุ่มชุบ (โผล่เมื่ออยู่ใกล้เพื่อนที่ล้ม)
 		local target = if stateName == "Alive" then findReviveTarget() else nil
-		hud.setContext(target ~= nil, "กดค้างเพื่อชุบ")
+		local contextVisible = target ~= nil
+		if contextVisible ~= lastContext then
+			lastContext = contextVisible
+			hud.setContext(contextVisible, "กดค้างเพื่อชุบ")
+		end
 		if reviveHeld and target ~= nil then
 			if activeReviveTarget ~= target.UserId then
 				activeReviveTarget = target.UserId
@@ -485,7 +528,11 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 				progressText = "เพื่อนกำลังชุบคุณ…"
 			end
 		end
-		hud.setProgress(progress, progressText)
+		if progress ~= lastProgress or progressText ~= lastProgressText then
+			lastProgress = progress
+			lastProgressText = progressText
+			hud.setProgress(progress, progressText)
+		end
 	end)
 
 	return {

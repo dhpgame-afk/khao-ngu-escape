@@ -164,14 +164,15 @@ function Hud.create(): Refs
 	chCorner.CornerRadius = UDim.new(0.5, 0)
 	chCorner.Parent = crosshair
 
-	-- ปุ่มฝั่งขวา (นิ้วโป้งขวา)
-	local fire = makeButton(gui, "Fire", "ยิง", Vector2.new(0.86, 0.72), 0.26, true)
+	-- ปุ่มฝั่งขวา (นิ้วโป้งขวา) — ขนาดเทียบความสูงจอ: ปุ่มเล็ก 0.17 (~68pt บนจอสูง 400pt) ปุ่มยิง 0.26
+	-- หลบปุ่มกระโดดมาตรฐานของ Roblox (มุมขวาล่าง x > ~0.86W, y > ~0.72H): ปุ่มทั้งหมดอยู่ซ้าย/เหนือบริเวณนั้น
+	local fire = makeButton(gui, "Fire", "ยิง", Vector2.new(0.76, 0.66), 0.26, true)
 	fire.BackgroundColor3 = Color3.fromRGB(190, 60, 50)
-	local aim = makeButton(gui, "Aim", "เล็ง", Vector2.new(0.66, 0.84), 0.13, true)
-	local reload = makeButton(gui, "Reload", "เปลี่ยนแม็ก", Vector2.new(0.67, 0.64), 0.14, true)
-	local throw = makeButton(gui, "Throw", "ขว้างประทัด", Vector2.new(0.80, 0.45), 0.14, true)
+	local aim = makeButton(gui, "Aim", "เล็ง", Vector2.new(0.60, 0.80), 0.17, true)
+	local reload = makeButton(gui, "Reload", "เปลี่ยนแม็ก", Vector2.new(0.62, 0.58), 0.17, true)
+	local throw = makeButton(gui, "Throw", "ขว้างประทัด", Vector2.new(0.76, 0.36), 0.17, true)
 	-- ปุ่มตามสถานการณ์ (หยิบ/ชุบ/มัดตัว/ถวาย) = ปุ่มเดียว กลางขวา
-	local context = makeButton(gui, "Context", "", Vector2.new(0.92, 0.33), 0.16, true)
+	local context = makeButton(gui, "Context", "", Vector2.new(0.92, 0.40), 0.17, true)
 	context.BackgroundColor3 = Color3.fromRGB(230, 160, 40)
 	context.Visible = false
 
@@ -179,8 +180,8 @@ function Hud.create(): Refs
 	local slotBar = Instance.new("Frame")
 	slotBar.Name = "SlotBar"
 	slotBar.AnchorPoint = Vector2.new(0.5, 1)
-	slotBar.Position = UDim2.fromScale(0.40, 0.97)
-	slotBar.Size = UDim2.fromScale(0.30, 0.10)
+	slotBar.Position = UDim2.fromScale(0.40, 0.98)
+	slotBar.Size = UDim2.fromScale(0.30, 0.16)
 	slotBar.BackgroundTransparency = 1
 	slotBar.Parent = gui
 	local layout = Instance.new("UIListLayout")
@@ -222,7 +223,7 @@ function Hud.create(): Refs
 	end
 
 	-- กระสุน/ประทัด (เหนือแถบอาวุธ)
-	local ammoLabel = makeLabel(gui, "Ammo", "", UDim2.fromScale(0.25, 0.80), UDim2.fromScale(0.30, 0.06))
+	local ammoLabel = makeLabel(gui, "Ammo", "", UDim2.fromScale(0.25, 0.75), UDim2.fromScale(0.30, 0.06))
 
 	-- แถบความคืบหน้า (ชุบเพื่อน) กลางจอ
 	local progressBack = Instance.new("Frame")
@@ -260,9 +261,13 @@ function Hud.create(): Refs
 	overlay.ZIndex = 0
 	overlay.Parent = gui
 	local overlayText = makeLabel(overlay, "Text", "", UDim2.fromScale(0.15, 0.18), UDim2.fromScale(0.70, 0.14))
-	addTextSize(overlayText, 40)
+	local overlayConstraint = overlayText:FindFirstChildOfClass("UITextSizeConstraint")
+	if overlayConstraint ~= nil then
+		overlayConstraint.MaxTextSize = 40 -- ใช้ตัวที่ makeLabel สร้างไว้ ไม่เพิ่มซ้ำ
+	end
 
-	-- ===== ฟังก์ชันอัปเดต =====
+	-- ===== ฟังก์ชันอัปเดต (cache ค่าเดิม เขียน property เฉพาะเมื่อเปลี่ยน) =====
+	local cache: { [string]: any } = {}
 	local refs: Refs = {
 		gui = gui,
 		fire = fire,
@@ -273,18 +278,35 @@ function Hud.create(): Refs
 		slots = slots,
 		crosshair = crosshair,
 		setHealth = function(hp: number, maxHp: number)
+			if hp == cache.hp and maxHp == cache.maxHp then
+				return
+			end
+			cache.hp, cache.maxHp = hp, maxHp
 			local fraction = math.clamp(hp / math.max(maxHp, 1), 0, 1)
 			hpFill.Size = UDim2.fromScale(fraction, 1)
 			hpFill.BackgroundColor3 = if fraction > 0.4 then Color3.fromRGB(80, 200, 100) else Color3.fromRGB(220, 150, 40)
 			hpText.Text = "เลือด " .. math.ceil(hp)
 		end,
 		setMoney = function(money: number)
+			if money == cache.money then
+				return
+			end
+			cache.money = money
 			moneyLabel.Text = "เงิน " .. money
 		end,
 		setAmmoText = function(text: string)
+			if text == cache.ammo then
+				return
+			end
+			cache.ammo = text
 			ammoLabel.Text = text
 		end,
 		setSlotLabels = function(labels: { string }, selected: number)
+			local key = table.concat(labels, "|") .. "#" .. selected
+			if key == cache.slotKey then
+				return
+			end
+			cache.slotKey = key
 			for i, b in slots do
 				b.Text = labels[i] or tostring(i)
 				local stroke = b:FindFirstChild("Stroke")
@@ -296,6 +318,10 @@ function Hud.create(): Refs
 			end
 		end,
 		setThrowEnabled = function(enabled: boolean)
+			if enabled == cache.throwEnabled then
+				return
+			end
+			cache.throwEnabled = enabled
 			throw.BackgroundTransparency = if enabled then 0.3 else 0.75
 			throw.TextTransparency = if enabled then 0 else 0.5
 		end,
@@ -303,10 +329,18 @@ function Hud.create(): Refs
 			aim.BackgroundColor3 = if active then Color3.fromRGB(60, 120, 200) else DARK
 		end,
 		setContext = function(visible: boolean, text: string)
+			if visible == cache.contextVisible and text == cache.contextText then
+				return
+			end
+			cache.contextVisible, cache.contextText = visible, text
 			context.Visible = visible
 			context.Text = text
 		end,
 		setProgress = function(fraction: number?, text: string)
+			if fraction == cache.progress and text == cache.progressText then
+				return
+			end
+			cache.progress, cache.progressText = fraction, text
 			if fraction == nil then
 				progressBack.Visible = false
 				return
@@ -316,6 +350,11 @@ function Hud.create(): Refs
 			progressText.Text = text
 		end,
 		setOverlay = function(kind: string, secondsLeft: number)
+			local key = kind .. ":" .. math.max(0, math.ceil(secondsLeft))
+			if key == cache.overlayKey then
+				return
+			end
+			cache.overlayKey = key
 			if kind == "Downed" then
 				overlay.Visible = true
 				overlay.BackgroundColor3 = Color3.fromRGB(150, 90, 30)

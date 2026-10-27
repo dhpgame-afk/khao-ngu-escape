@@ -11,6 +11,7 @@ local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local PlayerData = require(script.Parent.PlayerData)
+local PlayerHealth = require(script.Parent.PlayerHealth)
 local MC = Config.Monkey
 
 type Nest = {
@@ -54,40 +55,12 @@ local monkeyFolder: Folder? = nil
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
-local playerHealth: any = nil
-local warnedNoHealth = false
-
 local rng = Random.new()
 
 -- ===== เครื่องมือย่อย =====
 
--- โหลด PlayerHealth ตอนใช้ (coder อีกคนทำ) — ถ้ายังไม่มีจะไม่ error
-local function getPlayerHealth(): any
-	if playerHealth ~= nil then
-		return playerHealth
-	end
-	local moduleScript = script.Parent:FindFirstChild("PlayerHealth")
-	if moduleScript ~= nil and moduleScript:IsA("ModuleScript") then
-		local ok, result = pcall(require, moduleScript)
-		if ok then
-			playerHealth = result
-			return playerHealth
-		end
-		warn("[Monkeys] โหลด PlayerHealth ไม่สำเร็จ:", result)
-	end
-	if not warnedNoHealth then
-		warnedNoHealth = true
-		warn("[Monkeys] ยังไม่พบ PlayerHealth — ลิงจะยังไม่ตีผู้เล่น")
-	end
-	return nil
-end
-
 local function isPlayerAlive(player: Player): boolean
-	local ph = getPlayerHealth()
-	if ph == nil then
-		return false
-	end
-	local ok, state = pcall(ph.getState, player)
+	local ok, state = pcall(PlayerHealth.getState, player)
 	return ok and state == "Alive"
 end
 
@@ -281,6 +254,7 @@ local function killMonkey(rec: MonkeyRec, attacker: Player?)
 		if part:IsA("BasePart") then
 			part.Anchored = true
 			part.CanCollide = false
+			part.CanQuery = false -- ซากไม่บังกระสุน
 		end
 	end
 	rec.model:PivotTo(rec.model:GetPivot() * CFrame.Angles(0, 0, math.pi / 2))

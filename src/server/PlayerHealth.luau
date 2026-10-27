@@ -23,6 +23,7 @@ type Info = {
 	lastHitClock: number, -- os.clock ตอนโดนครั้งล่าสุด (ไว้หน่วงการฟื้นเลือด)
 	downedEndsAt: number, -- os.clock ที่ล้มแล้วจะกลายเป็นตาย
 	jumpHeight: number, -- เก็บค่าตอนเกิดไว้คืนให้ตอนชุบ
+	jumpPower: number,
 }
 
 type ReviveJob = {
@@ -77,6 +78,18 @@ end
 
 -- ===== เปลี่ยนสถานะ =====
 
+-- TODO(ชุดถัดไป): แทนด้วยระบบกลับเข้าแมพ (เพื่อนโทรเรียก 5 วิ / ครบ 40 วิ ไปหนังสติ๊กเลือกเป้ายิงตัว)
+-- ตอนนี้แค่เกิดใหม่หลังครบ RespawnSeconds
+function PlayerHealth.respawnAfterDeath(player: Player)
+	local ok, err = pcall(function()
+		player:LoadCharacter()
+	end)
+	if not ok then
+		warn("[PlayerHealth] เกิดใหม่ไม่สำเร็จ", player.Name, err)
+	end
+end
+
+
 local function setDead(player: Player, info: Info)
 	if info.state == "Dead" then
 		return
@@ -119,6 +132,7 @@ local function setAlive(info: Info, health: number)
 	info.humanoid.Health = health
 	info.humanoid.WalkSpeed = PCfg.WalkSpeed
 	info.humanoid.JumpHeight = info.jumpHeight
+	info.humanoid.JumpPower = info.jumpPower
 	info.lastHitClock = os.clock()
 	info.character:SetAttribute("ReviveProgress", 0)
 	publish(info, 0)
@@ -164,17 +178,6 @@ function PlayerHealth.damageFromPlayer(victim: Player, amount: number, attacker:
 		return
 	end
 	applyDamage(victim, amount, false)
-end
-
--- TODO(ชุดถัดไป): แทนด้วยระบบกลับเข้าแมพ (เพื่อนโทรเรียก 5 วิ / ครบ 40 วิ ไปหนังสติ๊กเลือกเป้ายิงตัว)
--- ตอนนี้แค่เกิดใหม่หลังครบ RespawnSeconds
-function PlayerHealth.respawnAfterDeath(player: Player)
-	local ok, err = pcall(function()
-		player:LoadCharacter()
-	end)
-	if not ok then
-		warn("[PlayerHealth] เกิดใหม่ไม่สำเร็จ", player.Name, err)
-	end
 end
 
 -- ===== ชุบ =====
@@ -330,14 +333,15 @@ function PlayerHealth.init()
 
 	local reviveHold = Remotes.remoteEvent("ReviveHold")
 	reviveHold.OnServerEvent:Connect(function(player: Player, targetUserId: any, holding: any)
-		if not RateLimit.allow(player, "ReviveHold", Config.Combat.ActionMinIntervalSeconds) then
-			return
-		end
 		if type(holding) ~= "boolean" then
 			return
 		end
+		-- คำสั่งปล่อยต้องไม่ถูกทิ้ง (ไม่ผ่าน rate limit) · stopRevive เบาและทำซ้ำได้ปลอดภัย
 		if not holding then
 			stopRevive(player)
+			return
+		end
+		if not RateLimit.allow(player, "ReviveHold", Config.Combat.ActionMinIntervalSeconds) then
 			return
 		end
 		if not isFiniteNumber(targetUserId) or targetUserId % 1 ~= 0 then
