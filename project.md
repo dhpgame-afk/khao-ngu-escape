@@ -117,10 +117,10 @@
 - งานล่าสุด (เพิ่ม): โครง Rojo (`default.project.json`, `src/`) · `Config.luau` รวมตัวเลขเกม · ระบบเซฟ `PlayerData` (ล็อกกันเซิร์ฟเวอร์ซ้อน · โหมดทดสอบ Studio ไม่เซฟ) · ร้านปืน/แลกขนม `Shop` (เซิร์ฟเวอร์ตรวจ) · ผ่าน auditor + แก้แล้ว · rojo build ผ่าน · git init + commit ในเครื่อง (ยังไม่ขึ้น GitHub)
 - งานต่อไป:
   1. เจ้าของ: นำ heightmap เข้า Studio (ขั้นที่ 2 ใน `docs/map-log.md`) แล้ว Save
-  2. `rojo serve` + เจ้าของกด Connect ใน Studio ลองซิงก์ แล้วกด Play ดูข้อความเงิน/ขนมใน Output
+  2. ~~ลองซิงก์ Rojo + Play~~ ผ่านแล้ว 2026-10-27 (experience ใหม่ของ gamjamxxx · Output: `Money = 0 Snacks = 0 Guns = BBPistol`) — เหลือ: เปิด Enable Studio Access to API Services แล้วลอง Play อีกรอบให้เซฟจริง
   3. ขออนุญาตดาวน์โหลด Selene + StyLua แล้วรัน lint ครั้งแรก
   4. ~~สร้าง repo บน GitHub~~ เสร็จแล้ว: https://github.com/dhpgame-afk/khao-ngu-escape (private · ย้ายจาก Trr-ai-training เมื่อ 2026-10-27)
 - ติดปัญหา / รอตัดสินใจ:
   - ตัวเลขที่ "ยังไม่ระบุ" ใส่ค่าชั่วคราวใน Config แล้ว (เงินต่อลิง 5 · รางวัลภารกิจ 200 · ขาดของได้ ×0.5 · ฟื้นเลือด 2/วิ หลังไม่โดนตี 5 วิ · ลิงตีทุก 1.5 วิ · ยิง/วิ ปืนพก 3 ลูกซอง 1 ปืนกล 10 · แม็กลูกซอง 6 · วงประทัด 12 stud · ไม้กวด 0.6 วิ) — ให้เจ้าของปรับตอนทดสอบ
   - `Shop.isInLobby` ยังคืน true เสมอ — ต้องผูกกับระบบห้องรอ/ภารกิจก่อนเปิดภารกิจ ไม่งั้นซื้อ/แลกกลางภารกิจได้
-  - ยังไม่ได้ทดสอบโค้ดใน Studio และยังไม่ได้ lint
+  - ยังไม่ได้ lint (ทดสอบ Play ใน Studio ผ่านแล้วแบบไม่เซฟ)

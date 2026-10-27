@@ -29,3 +29,17 @@
 ได้เรียนรู้:
 - ภาพ heightmap ยิ่งขาวยิ่งสูง · ข้อมูลฟรีละเอียดราว 30 ม. จึงได้รูปทรงคร่าว ๆ ต้องปั้นหน้าผาเพิ่มเอง
 - พื้นที่นี้ด้านเหนือต่ำ (เชิงเขาฝั่งทางเข้า) แล้วค่อย ๆ สูงขึ้นไปทางใต้
+
+## 2026-10-27 — สร้างแมพใหม่และเชื่อม Rojo
+เป้าหมาย: ได้แมพเปล่าของเกมนี้เอง แล้วให้โค้ดจากคอมเข้ามาใน Studio
+ขั้นตอน:
+1. หน้าแรก Studio → New → Baseplate → `Alt + P` Publish เป็นเกมใหม่ (ชื่อ หนีตายเขางู)
+2. ลบ Baseplate เหลือ SpawnLocation (จะใช้ terrain เขางูแทน)
+3. ป๊อปอัป Rojo มุมขวาล่าง → Connect · Explorer มี ServerScriptService/Server และ ReplicatedStorage/Shared
+4. Window → Output (เมนูใหม่ Output ไม่ได้อยู่ใน View แล้ว) → กด Play
+ผลลัพธ์: Output ขึ้น `[Client] Money = 0 Snacks = 0 Guns = BBPistol` = ระบบข้อมูลผู้เล่นทำงาน
+ปัญหาที่เจอ → แก้ยังไง:
+- ตอนแรก Rojo ไปต่อกับแมพสอนใช้งาน → ปิดแมพนั้นไม่ Save แล้วสร้างแมพใหม่
+- หา Game Settings ไม่เจอ → เมนูใหม่ชื่อ File → Experience Settings
+- ข้อความแดง `ContentId ... Asset type does not match` มาจาก Studio เอง ไม่ใช่โค้ดเรา ไม่ต้องสนใจ
+ได้เรียนรู้: Rojo ส่งได้แค่สคริปต์ แมพต้อง Save ใน Studio เอง
