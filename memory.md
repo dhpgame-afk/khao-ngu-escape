@@ -29,6 +29,9 @@
 - เพิ่มฟิลด์ในข้อมูลที่เซฟต้อง bump `dataVersion` + เขียน migration เสมอ (migrate ทิ้งฟิลด์ที่ไม่รู้จัก)
 - StreamingEnabled ตั้งผ่าน Rojo ไม่ได้ (ไม่แมป Workspace เพื่อไม่ทับแมพ) — เจ้าของต้องติ๊กเองใน Studio
 
+- GitHub: repo อยู่ที่บัญชี dhpgame-afk · เครื่องนี้ล็อกอิน gh ไว้ 2 บัญชี (dhpgame-afk = ใช้งาน, Trr-ai-training = สำรอง) · ถ้า push ผิดบัญชี ตรวจด้วย `gh auth status` แล้ว `gh auth switch`
+- git ของโปรเจกต์นี้ตั้งชื่อผู้ commit เป็น dhpgame-afk (อีเมล noreply ของ GitHub) เฉพาะ repo นี้ ไม่แตะค่ากลางของเครื่อง
+
 ## สรุปย่อของเก่า
 - (ยังไม่มี)
 
