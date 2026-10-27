@@ -1,6 +1,7 @@
 --!strict
 -- PlayerHealth: เลือดและสถานะของผู้เล่น (ปกติ / ล้ม / ตาย) — เซิร์ฟเวอร์เป็นคนเปลี่ยนเท่านั้น
--- สถานะส่งให้ทุก client ผ่าน Attribute บน Character: State, StateEndsAt (เวลาเซิร์ฟเวอร์), ReviveProgress (0–1)
+-- สถานะส่งให้ทุก client ผ่าน Attribute บน Character: State, StateEndsAt (เวลาเซิร์ฟเวอร์), ReviveProgress (0–1),
+-- DownedHealth (เลือดตอนล้ม · 0 เมื่อไม่ได้ล้ม)
 -- (ไม่ใช่ข้อมูลลับ — ใช้วาด UI นับถอยหลัง/แถบชุบ)
 
 local Players = game:GetService("Players")
@@ -22,6 +23,7 @@ type Info = {
 	humanoid: Humanoid,
 	lastHitClock: number, -- os.clock ตอนโดนครั้งล่าสุด (ไว้หน่วงการฟื้นเลือด)
 	downedEndsAt: number, -- os.clock ที่ล้มแล้วจะกลายเป็นตาย
+	downedHealth: number, -- "เลือดตอนล้ม" ลิงตีลดได้ (หมด = ตายทันที) · 0 เมื่อไม่ได้ล้ม
 	jumpHeight: number, -- เก็บค่าตอนเกิดไว้คืนให้ตอนชุบ
 	jumpPower: number,
 }
@@ -95,6 +97,8 @@ local function setDead(player: Player, info: Info)
 		return
 	end
 	info.state = "Dead"
+	info.downedHealth = 0
+	info.character:SetAttribute("DownedHealth", 0)
 	cancelRevivesInvolving(player)
 	publish(info, Workspace:GetServerTimeNow() + PCfg.RespawnSeconds)
 	info.humanoid.Health = 0 -- ตั้งสถานะก่อน เพื่อให้ Died ที่ตามมาไม่ทำซ้ำ
@@ -113,6 +117,8 @@ local function setDowned(player: Player, info: Info)
 	end
 	info.state = "Downed"
 	info.downedEndsAt = os.clock() + PCfg.DownedSeconds
+	info.downedHealth = PCfg.DownedHealth
+	info.character:SetAttribute("DownedHealth", info.downedHealth)
 	info.humanoid.Health = 1 -- ค้างไว้ที่ 1 (ไม่ให้ Humanoid ตายเอง)
 	info.humanoid.WalkSpeed = PCfg.DownedWalkSpeed
 	info.humanoid.JumpHeight = 0
@@ -129,6 +135,8 @@ end
 
 local function setAlive(info: Info, health: number)
 	info.state = "Alive"
+	info.downedHealth = 0
+	info.character:SetAttribute("DownedHealth", 0)
 	info.humanoid.Health = health
 	info.humanoid.WalkSpeed = PCfg.WalkSpeed
 	info.humanoid.JumpHeight = info.jumpHeight
@@ -168,15 +176,27 @@ local function applyDamage(player: Player, amount: number, killsOutright: boolea
 end
 
 -- ลิงตีจน HP หมด → ตายทันที
+-- ถ้าเป้าล้มอยู่: ตีได้ แต่ลดเลือดตอนล้มแค่ amount × DownedDamageMultiplier · หมด → ตายทันที
 function PlayerHealth.damageFromMonkey(player: Player, amount: number)
+	local info = infos[player]
+	if info ~= nil and info.state == "Downed" then
+		if not isFiniteNumber(amount) or amount <= 0 then
+			return
+		end
+		info.downedHealth -= amount * Config.Monkey.DownedDamageMultiplier
+		if info.downedHealth <= 0 then
+			setDead(player, info)
+		else
+			info.character:SetAttribute("DownedHealth", info.downedHealth)
+		end
+		return
+	end
 	applyDamage(player, amount, true)
 end
 
 -- เพื่อนทำร้าย (ปืน/ประทัด/ไม้กวด) จน HP หมด → ล้ม
+-- (ประทัดที่ขว้างเองโดนตัวเองได้ → victim == attacker ก็ล้มแบบเดียวกัน · ผู้เรียกเป็นคนเลือกว่าอาวุธไหนโดนตัวเองได้)
 function PlayerHealth.damageFromPlayer(victim: Player, amount: number, attacker: Player)
-	if victim == attacker then
-		return
-	end
 	applyDamage(victim, amount, false)
 end
 
@@ -294,10 +314,13 @@ local function onCharacterAdded(player: Player, character: Model)
 		humanoid = humanoid,
 		lastHitClock = 0,
 		downedEndsAt = 0,
+		downedHealth = 0,
 		jumpHeight = humanoid.JumpHeight,
+		jumpPower = humanoid.JumpPower,
 	}
 	infos[player] = info
 	character:SetAttribute("ReviveProgress", 0)
+	character:SetAttribute("DownedHealth", 0)
 	publish(info, 0)
 
 	humanoid.Died:Connect(function()

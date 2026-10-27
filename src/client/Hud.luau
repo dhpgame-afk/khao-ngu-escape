@@ -24,6 +24,7 @@ export type Refs = {
 	setContext: (visible: boolean, text: string) -> (),
 	setProgress: (fraction: number?, text: string) -> (),
 	setOverlay: (kind: string, secondsLeft: number) -> (),
+	setDownedHealth: (fraction: number?) -> (),
 }
 
 local FONT = Enum.Font.GothamBold
@@ -266,6 +267,30 @@ function Hud.create(): Refs
 		overlayConstraint.MaxTextSize = 40 -- ใช้ตัวที่ makeLabel สร้างไว้ ไม่เพิ่มซ้ำ
 	end
 
+	-- แถบ "เลือดตอนล้ม" (ลิงตีลดได้) อยู่ใต้ข้อความในจอล้ม
+	local downedBack = Instance.new("Frame")
+	downedBack.Name = "DownedHealth"
+	downedBack.AnchorPoint = Vector2.new(0.5, 0)
+	downedBack.Position = UDim2.fromScale(0.5, 0.34)
+	downedBack.Size = UDim2.fromScale(0.40, 0.04)
+	downedBack.BackgroundColor3 = DARK
+	downedBack.BackgroundTransparency = 0.3
+	downedBack.BorderSizePixel = 0
+	downedBack.Visible = false
+	downedBack.Parent = overlay
+	local dbCorner = Instance.new("UICorner")
+	dbCorner.CornerRadius = UDim.new(0.4, 0)
+	dbCorner.Parent = downedBack
+	local downedFill = Instance.new("Frame")
+	downedFill.Name = "Fill"
+	downedFill.Size = UDim2.fromScale(1, 1)
+	downedFill.BackgroundColor3 = Color3.fromRGB(220, 70, 60)
+	downedFill.BorderSizePixel = 0
+	downedFill.Parent = downedBack
+	local dfCorner = Instance.new("UICorner")
+	dfCorner.CornerRadius = UDim.new(0.4, 0)
+	dfCorner.Parent = downedFill
+
 	-- ===== ฟังก์ชันอัปเดต (cache ค่าเดิม เขียน property เฉพาะเมื่อเปลี่ยน) =====
 	local cache: { [string]: any } = {}
 	local refs: Refs = {
@@ -348,6 +373,19 @@ function Hud.create(): Refs
 			progressBack.Visible = true
 			progressFill.Size = UDim2.fromScale(math.clamp(fraction, 0, 1), 1)
 			progressText.Text = text
+		end,
+		-- fraction = nil → ซ่อนแถบ (ไม่ได้ล้ม)
+		setDownedHealth = function(fraction: number?)
+			if fraction == cache.downedFraction then
+				return
+			end
+			cache.downedFraction = fraction
+			if fraction == nil then
+				downedBack.Visible = false
+				return
+			end
+			downedBack.Visible = true
+			downedFill.Size = UDim2.fromScale(math.clamp(fraction, 0, 1), 1)
 		end,
 		setOverlay = function(kind: string, secondsLeft: number)
 			local key = kind .. ":" .. math.max(0, math.ceil(secondsLeft))

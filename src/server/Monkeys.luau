@@ -59,9 +59,10 @@ local rng = Random.new()
 
 -- ===== เครื่องมือย่อย =====
 
-local function isPlayerAlive(player: Player): boolean
+-- ลิงตีได้ทั้งคนปกติและคนที่ล้ม (ไม่รวมคนตาย)
+local function isPlayerTargetable(player: Player): boolean
 	local ok, state = pcall(PlayerHealth.getState, player)
-	return ok and state == "Alive"
+	return ok and (state == "Alive" or state == "Downed")
 end
 
 local function groundY(x: number, z: number, refY: number): number
@@ -292,7 +293,7 @@ local function collectPlayers(): { PlayerInfo }
 		local character = player.Character
 		local hrp = character and character:FindFirstChild("HumanoidRootPart")
 		if hrp ~= nil and hrp:IsA("BasePart") then
-			table.insert(list, { player = player, pos = hrp.Position, alive = isPlayerAlive(player) })
+			table.insert(list, { player = player, pos = hrp.Position, alive = isPlayerTargetable(player) })
 		end
 	end
 	return list
@@ -311,7 +312,7 @@ local function updateMonkey(rec: MonkeyRec, players: { PlayerInfo }, now: number
 	local pos = rec.root.Position
 	local nest = rec.nest
 
-	-- หาผู้เล่นที่ใกล้สุด (ทุกคน) กับเป้าหมายที่ตีได้ (Alive เท่านั้น)
+	-- หาผู้เล่นที่ใกล้สุด (ทุกคน) กับเป้าหมายที่ตีได้ (ปกติหรือล้ม ไม่รวมตาย) — เลือกคนที่ใกล้สุด
 	local sight = if nest.alert then MC.AlertSightDistance else MC.SightDistance
 	local nearestAny = math.huge
 	local target: PlayerInfo? = nil
@@ -364,12 +365,10 @@ local function updateMonkey(rec: MonkeyRec, players: { PlayerInfo }, now: number
 			rec.humanoid:MoveTo(pos) -- หยุดตี
 			if now - rec.lastAttack >= MC.AttackIntervalSeconds then
 				rec.lastAttack = now
-				local ph = getPlayerHealth()
-				if ph ~= nil then
-					local ok, err = pcall(ph.damageFromMonkey, target.player, MC.AttackDamage)
-					if not ok then
-						warn("[Monkeys] damageFromMonkey error:", err)
-					end
+				-- PlayerHealth ตรวจสถานะล่าสุดเอง (ถ้าเพิ่งชุบ/ตาย/ออกเกม จะจัดการถูกต้องหรือไม่มีผล)
+				local ok, err = pcall(PlayerHealth.damageFromMonkey, target.player, MC.AttackDamage)
+				if not ok then
+					warn("[Monkeys] damageFromMonkey error:", err)
 				end
 			end
 		else

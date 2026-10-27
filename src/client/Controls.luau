@@ -454,6 +454,15 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 			lastOverlayKey = overlayKey
 			hud.setOverlay(overlayKind, remaining)
 		end
+		-- แถบเลือดตอนล้ม (แสดงเฉพาะตอนล้ม · Hud cache ค่าเดิมเอง)
+		local downedFraction: number? = nil
+		if stateName == "Downed" and character ~= nil then
+			local dh = character:GetAttribute("DownedHealth")
+			if type(dh) == "number" then
+				downedFraction = dh / Config.Player.DownedHealth
+			end
+		end
+		hud.setDownedHealth(downedFraction)
 		if stateName ~= "Alive" and aiming then
 			setAiming(false)
 		end

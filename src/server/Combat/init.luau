@@ -199,8 +199,8 @@ local function applyHit(inst: Instance, amount: number, attacker: Player)
 	end
 end
 
--- รวมเป้าที่โดนวงได้ทั้งหมด (ลิง + ผู้เล่นอื่น) ไม่รวมผู้โจมตีเอง
-local function gatherTargets(attacker: Player): { TargetEntry }
+-- รวมเป้าที่โดนวงได้ทั้งหมด (ลิง + ผู้เล่นอื่น) · includeSelf = true นับผู้โจมตีเองเป็นเป้าด้วย (ใช้กับประทัดเท่านั้น)
+local function gatherTargets(attacker: Player, includeSelf: boolean): { TargetEntry }
 	local list: { TargetEntry } = {}
 	for _, inst in CollectionService:GetTagged(MONKEY_TAG) do
 		if inst:IsA("Model") and inst:IsDescendantOf(Workspace) then
@@ -208,7 +208,7 @@ local function gatherTargets(attacker: Player): { TargetEntry }
 		end
 	end
 	for _, other in Players:GetPlayers() do
-		if other ~= attacker and other.Character ~= nil then
+		if (includeSelf or other ~= attacker) and other.Character ~= nil then
 			local root = rootPart(other.Character)
 			if root ~= nil then
 				table.insert(list, { monkey = nil, player = other, position = root.Position })
@@ -345,7 +345,8 @@ local function explodeFirecracker(position: Vector3, attacker: Player)
 	ex.ExplosionType = Enum.ExplosionType.NoCraters
 	ex.Parent = Workspace
 
-	for _, entry in gatherTargets(attacker) do -- TODO(ถามเจ้าของ): ประทัดโดนตัวเองไหม ตอนนี้ไม่โดน
+	-- ประทัดโดนผู้ขว้างเองได้ ความเสียหายเท่ากัน · HP หมดจากประทัดตัวเอง → ล้ม (ไม่ใช่ตาย)
+	for _, entry in gatherTargets(attacker, true) do
 		if (entry.position - position).Magnitude <= Config.Firecracker.Radius then
 			damageEntry(entry, Config.Firecracker.AreaDamage, attacker)
 		end
@@ -432,7 +433,7 @@ local function onSwing(player: Player, rawDir: any)
 	-- ฟาดเป็นรูปพัดหน้าตัว: อยู่ในระยะ + อยู่ในมุม (TODO: เช็คกำแพงกั้น)
 	local origin = root.Position
 	local minDot = math.cos(math.rad(Config.Broom.ArcHalfAngleDegrees))
-	for _, entry in gatherTargets(player) do
+	for _, entry in gatherTargets(player, false) do -- ไม้กวดไม่โดนตัวเอง
 		local offset = entry.position - origin
 		local dist = offset.Magnitude
 		if dist <= Config.Broom.Range and (dist < 0.5 or offset.Unit:Dot(dir) >= minDot) then
