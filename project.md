@@ -116,7 +116,7 @@
 - งานล่าสุดที่ทำเสร็จ: เก็บ requirement · ภาพจำลอง `mockups/wireframe.html` · สร้าง CLAUDE.md / project.md / memory.md / .claude/ · ติดตั้ง Rokit 1.2.0 + Rojo 7.7.1 (`rokit.toml`) + ปลั๊กอิน Rojo ใน Studio · heightmap เขางู `map-assets/khaongu-heightmap.png` (14–95 ม.) · สมุด `docs/map-log.md`
 - งานล่าสุด (เพิ่ม): โครง Rojo (`default.project.json`, `src/`) · `Config.luau` รวมตัวเลขเกม · ระบบเซฟ `PlayerData` (ล็อกกันเซิร์ฟเวอร์ซ้อน · โหมดทดสอบ Studio ไม่เซฟ) · ร้านปืน/แลกขนม `Shop` (เซิร์ฟเวอร์ตรวจ) · ผ่าน auditor + แก้แล้ว · rojo build ผ่าน · git init + commit ในเครื่อง (ยังไม่ขึ้น GitHub)
 - งานต่อไป:
-  1. เจ้าของ: นำ heightmap เข้า Studio (ขั้นที่ 2 ใน `docs/map-log.md`) แล้ว Save
+  1. ~~นำ heightmap เข้า Studio~~ เสร็จแล้ว 2026-10-27 (ภูเขาขึ้นรูปแล้ว) · ต่อไป: ทาสีหน้าผา/ลานหิน · วางตำแหน่งกุฏิ รังลิง ฐานบั้งไฟ · กั้นขอบแมพ
   2. ~~ลองซิงก์ Rojo + Play~~ ผ่านแล้ว 2026-10-27 (experience ใหม่ของ gamjamxxx · Output: `Money = 0 Snacks = 0 Guns = BBPistol`) — เหลือ: เปิด Enable Studio Access to API Services แล้วลอง Play อีกรอบให้เซฟจริง
   3. ขออนุญาตดาวน์โหลด Selene + StyLua แล้วรัน lint ครั้งแรก
   4. ~~สร้าง repo บน GitHub~~ เสร็จแล้ว: https://github.com/dhpgame-afk/khao-ngu-escape (private · ย้ายจาก Trr-ai-training เมื่อ 2026-10-27)

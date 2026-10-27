@@ -44,3 +44,20 @@
 - ข้อความแดง `ContentId ... Asset type does not match` มาจาก Studio เอง ไม่ใช่โค้ดเรา ไม่ต้องสนใจ
 ไฟล์สำรอง: map-backups/map-00-start.rbxl (File → Download a Copy...)
 ได้เรียนรู้: Rojo ส่งได้แค่สคริปต์ แมพต้อง Save ใน Studio เอง
+
+## 2026-10-27 — ขึ้นรูปภูเขาเขางูจาก heightmap
+เป้าหมาย: ได้รูปทรงภูเขาจริงของเขางูใน Studio
+ขั้นตอน (กดตรงไหนใน Studio):
+1. Home → Terrain → แท็บ Create → Import
+2. Selection Settings: Size X 972 · Y 300 · Z 640 · Position X -2 · Y 150 · Z -2 (Snap to Voxels ปัดเลขให้ลงตัว 4 stud)
+3. Heightmap Settings → Heightmap: เลือก `map-assets/khaongu-heightmap.png` · Colormap ว่างไว้
+4. Default Material: Grass → กดปุ่ม Import สีฟ้า
+ผลลัพธ์: ภูเขาสีเขียว ด้านหนึ่งต่ำเป็นเชิงเขา อีกด้านสูงขึ้นเป็นยอด สูงสุด ≈ 300 stud
+ไฟล์สำรอง: map-backups/map-01-heightmap.rbxl
+ปัญหาที่เจอ → แก้ยังไง:
+- ช่อง Size Z เด้งเป็น 628 → พิมพ์ 640 ใหม่
+- แท่นเกิด (SpawnLocation) อาจจมในดิน → ยก Position Y ขึ้น แล้วค่อยวางบนพื้นตอนจัดฉาก
+ได้เรียนรู้:
+- ภาพขาว = สูง ดำ = ต่ำ · Size Y คือความสูงจากจุดดำสุดถึงขาวสุด
+- ข้อมูลฟรีละเอียดราว 30 ม. ภูเขาจึงเนียนเกินจริง ต้องปั้นหน้าผาและทาสีหินเพิ่มเอง
+- ขอบแมพยังเปิดโล่ง ผู้เล่นตกขอบได้ ต้องทำกำแพงหรือหน้าผากั้นทีหลัง
