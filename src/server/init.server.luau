@@ -3,6 +3,14 @@
 
 local PlayerData = require(script.PlayerData)
 local Shop = require(script.Shop)
+local PlayerHealth = require(script.PlayerHealth)
+local Combat = require(script.Combat)
 
 PlayerData.init()
 Shop.init()
+PlayerHealth.init()
+Combat.init()
+
+-- ระบบลิงและรังลิง
+local Monkeys = require(script.Monkeys)
+Monkeys.start()

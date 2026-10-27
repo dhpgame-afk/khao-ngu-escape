@@ -551,6 +551,24 @@ function PlayerData.removeSnacks(player: Player, amount: number): boolean
 	return true
 end
 
+-- เพิ่มสถิติ (เฉพาะคีย์ที่รู้จัก) — ไม่เปลี่ยนรูปแบบข้อมูลที่เซฟ
+function PlayerData.addStat(player: Player, key: string, amount: number): boolean
+	local session = sessions[player]
+	if session == nil or not session.loaded or not isPositiveInteger(amount) then
+		return false
+	end
+	local stats = session.data.stats
+	if key == "monkeysKilled" then
+		stats.monkeysKilled += amount
+	elseif key == "missionsCompleted" then
+		stats.missionsCompleted += amount
+	else
+		return false
+	end
+	markChanged(session)
+	return true
+end
+
 function PlayerData.hasGun(player: Player, gunId: string): boolean
 	local session = sessions[player]
 	if session == nil or not session.loaded then

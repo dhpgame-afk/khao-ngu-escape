@@ -56,6 +56,11 @@ local Config = {
 		PhoneCallSeconds = 5, -- โทรเรียกเพื่อนกลับ ระหว่างโทรยิงไม่ได้
 		RegenPerSecond = 2, -- TODO(ยังไม่ระบุ): อัตราฟื้นเลือดเอง
 		RegenDelaySeconds = 5, -- TODO(ยังไม่ระบุ): ไม่โดนตีนานเท่าไรถึงเริ่มฟื้น
+		WalkSpeed = 16, -- ความเร็วเดินปกติ (ค่ามาตรฐาน Roblox)
+		DownedWalkSpeed = 5, -- TODO(ยังไม่ระบุ): คนล้มคลานช้ากว่าปกติเท่าไร
+		ReviveRange = 8, -- TODO(ยังไม่ระบุ): ยืนห่างคนล้มไม่เกินกี่ stud ถึงชุบได้
+		ReviveHoldSeconds = 3, -- TODO(ยังไม่ระบุ): กดค้างชุบนานกี่วิ
+		ReviveHealthFraction = 0.5, -- TODO(ยังไม่ระบุ): ชุบแล้วได้เลือดกี่ส่วนของเต็ม
 	},
 
 	Monkey = {
@@ -69,6 +74,18 @@ local Config = {
 		ReinforceMaxPerNest = 15, -- เรียกเพิ่มรวมไม่เกิน 15 ตัวต่อรัง
 		CorpseSinkDelaySeconds = 10, -- ตายแล้ว 10 วิ จมพื้นหายไป
 		MoneyPerKill = 5, -- TODO(ยังไม่ระบุ): เงินต่อลิง 1 ตัว
+		MaxTotal = 80, -- TODO(ยังไม่ระบุ): เพดานลิงทั้งแมพ (4 รัง × 20) ปรับตามความลื่นบนมือถือ
+		NestWanderRadius = 30, -- TODO(ยังไม่ระบุ): รัศมีเดินวนรอบรัง (stud)
+		SightDistance = 60, -- TODO(ยังไม่ระบุ): ระยะที่ลิงเห็นผู้เล่น (stud)
+		AlertSightDistance = 150, -- TODO(ยังไม่ระบุ): ระยะเห็นเมื่อรังถูกโจมตีแล้ว
+		AttackRange = 5, -- TODO(ยังไม่ระบุ): ระยะตี (stud)
+		LeashDistance = 120, -- TODO(ยังไม่ระบุ): ไกลรังเกินนี้ → กลับรัง
+		SleepDistance = 200, -- TODO(ยังไม่ระบุ): ไกลผู้เล่นทุกคนเกินนี้ → ลิงหยุดคิด (ประหยัดเครื่อง)
+		AiTickSeconds = 0.25, -- อัปเดต AI เป็นรอบ ไม่ใช่ทุกเฟรม
+		WalkSpeed = 8, -- TODO(ยังไม่ระบุ): ความเร็วเดินวนรัง
+		ChaseSpeed = 16, -- TODO(ยังไม่ระบุ): ความเร็ววิ่งไล่
+		SinkSeconds = 2, -- ใช้เวลาจมพื้นกี่วินาที
+		SinkDepth = 5, -- จมลงกี่ stud
 	},
 
 	Guns = Guns,
@@ -78,11 +95,35 @@ local Config = {
 		AreaDamage = 50,
 		PerPlayer = 3,
 		Radius = 12, -- TODO(ยังไม่ระบุ): รัศมีวงระเบิด (stud)
+		FuseSeconds = 1.5, -- TODO(ยังไม่ระบุ): ขว้างแล้วระเบิดหลังกี่วิ
+		ThrowSpeed = 55, -- TODO(ยังไม่ระบุ): ความเร็วขว้าง (stud/วิ)
+		ThrowCooldownSeconds = 0.8, -- TODO(ยังไม่ระบุ)
 	},
 
 	Broom = {
 		Damage = 25, -- ใช้ไม่จำกัด
 		SwingCooldownSeconds = 0.6, -- TODO(ยังไม่ระบุ)
+		Range = 7, -- TODO(ยังไม่ระบุ): ระยะฟาด (stud)
+		ArcHalfAngleDegrees = 60, -- TODO(ยังไม่ระบุ): มุมฟาดครึ่งหนึ่งของแต่ละข้าง
+	},
+
+	Combat = {
+		MaxRange = 300, -- TODO(ยังไม่ระบุ): ระยะกระสุนไกลสุด (stud)
+		ReloadSeconds = 1.5, -- TODO(ยังไม่ระบุ): เวลาเปลี่ยนแม็ก
+		ShotgunSpreadDegrees = 6, -- TODO(ยังไม่ระบุ): มุมกระจายของลูกซอง
+		CarrySpreadDegrees = 8, -- TODO(ยังไม่ระบุ): ถือของอยู่ ยิงแบบไม่เล็ง = ศูนย์กว้างขึ้น (ใช้ตอนทำระบบถือของ)
+		ActionMinIntervalSeconds = 0.03, -- กัน spam remote ยิง/ขว้าง/ฟาด/ชุบ
+		MenuMinIntervalSeconds = 0.2, -- กัน spam remote เปลี่ยนช่อง/เปลี่ยนแม็ก
+		FireRateTolerance = 0.85, -- ยอมให้ยิงเร็วกว่ากำหนดนิดหน่อย (ชดเชยเน็ตกระตุก)
+		TracerSeconds = 0.08, -- เส้นกระสุนอยู่นานเท่านี้
+	},
+
+	Hud = {
+		AimAssistDegrees = 7, -- TODO(ยังไม่ระบุ): กรวย aim assist บนมือถือ
+		AimAssistRange = 150, -- TODO(ยังไม่ระบุ)
+		AimAssistStrength = 0.6, -- TODO(ยังไม่ระบุ): 0 = ไม่ช่วย, 1 = ล็อกเต็ม
+		NormalFov = 70,
+		AimFov = 45,
 	},
 
 	Snacks = {
