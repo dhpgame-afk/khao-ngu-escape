@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ภาพจำลองเกม (ขาวดำ)</title>
+<style>
+  :root { --ink:#111; --mid:#777; --bg:#fff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font-family: "Sarabun","Tahoma",sans-serif; line-height:1.5; }
+  main { max-width:1000px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--mid); margin:0 0 28px; font-size:14px; }
+  section { margin:0 0 40px; }
+  h2 { font-size:17px; margin:0 0 8px; }
+  h2 span { display:inline-block; border:2px solid var(--ink); border-radius:50%;
+            width:26px; height:26px; text-align:center; line-height:22px; margin-right:6px; font-size:14px; }
+  .note { font-size:13px; color:var(--mid); margin:8px 0 0; }
+  .screen { position:relative; border:2px solid var(--ink); aspect-ratio:16/9; width:100%;
+            background:repeating-linear-gradient(45deg,#fff 0 10px,#f6f6f6 10px 20px); overflow:hidden; }
+  .box { position:absolute; border:2px solid var(--ink); background:#fff; padding:4px 8px; font-size:12px; }
+  .dash { border-style:dashed; }
+  .center { left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; }
+  .big { font-size:28px; font-weight:bold; }
+  .bar { height:10px; border:2px solid var(--ink); margin-top:3px; background:linear-gradient(90deg,var(--ink) 70%,#fff 70%); }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .card { border:2px solid var(--ink); background:#fff; padding:8px; font-size:12px; text-align:center; }
+  .card .pic { height:40px; border:1px dashed var(--mid); margin-bottom:6px; display:flex; align-items:center; justify-content:center; color:var(--mid); }
+  .btn { display:inline-block; border:2px solid var(--ink); padding:2px 10px; margin-top:4px; font-weight:bold; }
+  .btn.off { border-style:dashed; color:var(--mid); }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  svg text { font-family:"Sarabun","Tahoma",sans-serif; }
+  @media (max-width:600px){ .box{font-size:10px;padding:2px 4px} .big{font-size:18px} .grid{gap:4px} .card{font-size:10px;padding:4px} .two{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<main>
+  <h1>ภาพจำลองเกม "หนีตายเขางู" (ชื่อชั่วคราว)</h1>
+  <p class="sub">ขาวดำแบบหยาบ ๆ ไว้ดูโครง · รุ่นแรก · แบบภารกิจส่งอาหารให้พระ</p>
+
+  <section>
+    <h2><span>1</span>ผังแมพเขางู (มองจากด้านบน · ประมาณ 270 × 180 ม.)</h2>
+    <svg viewBox="0 0 800 520" width="100%" style="border:2px solid #111;background:#fff">
+      <defs>
+        <pattern id="tree" width="24" height="24" patternUnits="userSpaceOnUse">
+          <circle cx="12" cy="12" r="5" fill="none" stroke="#bbb" stroke-width="1.5"/>
+        </pattern>
+        <pattern id="rock" width="12" height="12" patternUnits="userSpaceOnUse">
+          <path d="M0 12 L12 0" stroke="#999" stroke-width="1.5"/>
+        </pattern>
+      </defs>
+      <rect x="0" y="0" width="800" height="520" fill="url(#tree)"/>
+      <!-- play area -->
+      <rect x="60" y="70" width="680" height="400" fill="#fff" stroke="#111" stroke-width="2"/>
+      <text x="400" y="62" text-anchor="middle" font-size="12" fill="#555">ขอบแมพ (ตามกรอบที่คุณวาด)</text>
+      <!-- cliffs north -->
+      <path d="M60 70 L740 70 L740 110 C600 140 480 100 360 135 C250 160 140 120 60 150 Z" fill="url(#rock)" stroke="#111" stroke-width="2"/>
+      <text x="400" y="100" text-anchor="middle" font-size="13" font-weight="bold">หน้าผาหินปูน (ปีนไม่ได้)</text>
+      <!-- west ravine -->
+      <path d="M60 230 C140 240 170 300 200 380 L170 470 L60 470 Z" fill="url(#rock)" stroke="#111" stroke-width="1.5"/>
+      <text x="100" y="420" font-size="12">ร่องหิน</text>
+
+      <!-- kuti -->
+      <rect x="360" y="230" width="90" height="60" fill="#fff" stroke="#111" stroke-width="3"/>
+      <path d="M350 230 L405 200 L460 230" fill="none" stroke="#111" stroke-width="3"/>
+      <text x="405" y="258" text-anchor="middle" font-size="14" font-weight="bold">กุฏิ</text>
+      <text x="405" y="278" text-anchor="middle" font-size="11" fill="#555">พระรออาหาร</text>
+
+      <!-- monkey nests -->
+      <g font-size="11">
+        <g transform="translate(250,195)"><circle r="34" fill="none" stroke="#111" stroke-dasharray="5 4"/><circle r="12" fill="#fff" stroke="#111" stroke-width="2"/><text y="4" text-anchor="middle" font-weight="bold">N1</text></g>
+        <g transform="translate(560,190)"><circle r="34" fill="none" stroke="#111" stroke-dasharray="5 4"/><circle r="12" fill="#fff" stroke="#111" stroke-width="2"/><text y="4" text-anchor="middle" font-weight="bold">N2</text></g>
+        <g transform="translate(290,370)"><circle r="34" fill="none" stroke="#111" stroke-dasharray="5 4"/><circle r="12" fill="#fff" stroke="#111" stroke-width="2"/><text y="4" text-anchor="middle" font-weight="bold">N3</text></g>
+        <g transform="translate(520,360)"><circle r="34" fill="none" stroke="#111" stroke-dasharray="5 4"/><circle r="12" fill="#fff" stroke="#111" stroke-width="2"/><text y="4" text-anchor="middle" font-weight="bold">N4</text></g>
+      </g>
+
+      <!-- slingshot launch arcs -->
+      <g stroke="#111" stroke-width="2" fill="none" stroke-dasharray="7 5">
+        <path d="M30 505 C150 400 200 330 225 300"/>
+        <path d="M30 505 C250 470 400 440 430 410"/>
+      </g>
+      <g font-size="12">
+        <path d="M14 480 L22 500 M46 480 L38 500 M14 480 L46 480" stroke="#111" stroke-width="3"/>
+        <text x="50" y="512" font-size="12" font-weight="bold">หนังสติ๊กยักษ์ (นอกแมพ)</text>
+        <g transform="translate(225,300)"><path d="M-8 -8 L8 8 M8 -8 L-8 8" stroke="#111" stroke-width="3"/></g>
+        <g transform="translate(430,410)"><path d="M-8 -8 L8 8 M8 -8 L-8 8" stroke="#111" stroke-width="3"/></g>
+        <text x="440" y="414" font-size="11" fill="#555">จุดลงที่หัวห้องเลือก</text>
+      </g>
+
+      <!-- rocket pad -->
+      <rect x="630" y="380" width="80" height="70" fill="#fff" stroke="#111" stroke-width="2" stroke-dasharray="6 3"/>
+      <path d="M670 390 L682 412 L670 428 L658 412 Z" fill="none" stroke="#111" stroke-width="2"/>
+      <text x="670" y="444" text-anchor="middle" font-size="12" font-weight="bold">ฐานบั้งไฟ</text>
+      <text x="670" y="485" text-anchor="middle" font-size="11" fill="#555">ขึ้นหลังส่งอาหารเสร็จ</text>
+
+      <!-- route -->
+      <path d="M430 400 L440 300 M455 260 C560 280 610 330 640 390" stroke="#111" stroke-width="1.5" fill="none" marker-end=""/>
+      <text x="560" y="300" font-size="11" fill="#555">เส้นทางหลัก</text>
+
+      <!-- legend -->
+      <g font-size="11" transform="translate(440,472)">
+        <rect x="0" y="0" width="175" height="50" fill="#fff" stroke="#111"/>
+        <circle cx="14" cy="15" r="7" fill="#fff" stroke="#111" stroke-width="2"/><text x="28" y="19">รังลิง (ลิงเดินวนในวงประ)</text>
+        <path d="M7 30 L21 44 M21 30 L7 44" stroke="#111" stroke-width="2.5"/><text x="28" y="41">จุดลงจากหนังสติ๊ก</text>
+      </g>
+    </svg>
+    <p class="note">รังลิง 4 รังล้อมกุฏิ · รังละไม่เกิน 5 ตัว · โดนบุกแล้วทุก 10 วิ เรียกพวกเพิ่ม 5 ตัว (สูงสุด 15 ตัวต่อรัง) · ตำแหน่งทั้งหมดเป็นข้อเสนอ ปรับได้</p>
+  </section>
+
+  <section>
+    <h2><span>2</span>ห้องรอ: ร้านปืน + หัวห้องเลือกจุดลง</h2>
+    <div class="two">
+      <div>
+        <div class="screen" style="background:#fff">
+          <div class="box" style="left:0;top:0;right:0;border-width:0 0 2px 0;display:flex;justify-content:space-between"><b>ร้านปืน</b><span>เงิน <b>350</b></span></div>
+          <div class="grid" style="position:absolute;left:4%;right:4%;top:24%">
+            <div class="card"><div class="pic">BB</div><b>ปืนพก BB</b><br>ฟรี<br><span class="btn">ถืออยู่</span></div>
+            <div class="card"><div class="pic">BB</div><b>ลูกซอง BB</b><br>300<br><span class="btn">ซื้อ</span></div>
+            <div class="card"><div class="pic">BB</div><b>ปืนกล BB</b><br>800<br><span class="btn off">ไม่พอ</span></div>
+          </div>
+        </div>
+        <p class="note">ทุกคนซื้อปืนได้ก่อนออกภารกิจ</p>
+      </div>
+      <div>
+        <div class="screen" style="background:#fff">
+          <div class="box" style="left:50%;top:5%;transform:translateX(-50%);white-space:nowrap"><b>หัวห้อง:</b> แตะแผนที่เลือกจุดลง</div>
+          <svg viewBox="0 0 160 90" style="position:absolute;left:12%;top:24%;width:76%">
+            <rect x="2" y="2" width="156" height="86" fill="#fff" stroke="#111" stroke-width="1.5"/>
+            <rect x="70" y="38" width="20" height="14" fill="#fff" stroke="#111"/><text x="80" y="48" font-size="6" text-anchor="middle">กุฏิ</text>
+            <g fill="none" stroke="#111"><circle cx="45" cy="30" r="5"/><circle cx="115" cy="30" r="5"/><circle cx="50" cy="66" r="5"/><circle cx="108" cy="64" r="5"/></g>
+            <path d="M74 66 L84 76 M84 66 L74 76" stroke="#111" stroke-width="2.5"/>
+          </svg>
+          <div class="box" style="right:3%;bottom:5%"><b>ยิง!</b> (4/4 พร้อม)</div>
+        </div>
+        <p class="note">ทั้ง 4 คนถูกยิงออกพร้อมกันพร้อมตะกร้าอาหาร</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span>3</span>หน้าจอขณะเล่นบนมือถือ (คนถือตะกร้า)</h2>
+    <div class="screen">
+      <div class="box" style="left:2%;top:4%;width:30%">
+        <b>คุณ</b> เลือด<div class="bar"></div>
+        <div style="margin-top:6px;color:#555">A ● B ● C ✕ (ตาย 0:22)</div>
+      </div>
+      <div class="box" style="left:50%;top:4%;transform:translateX(-50%);text-align:center;white-space:nowrap">
+        <b>ภารกิจ:</b> นำอาหารไปถวายพระที่กุฏิ<br><span style="color:#555">กุฏิ ↗ 64 ม.</span>
+      </div>
+      <div class="box" style="right:2%;top:4%">เงิน <b>350</b></div>
+      <div class="center" style="position:absolute;font-size:22px;letter-spacing:6px">( · )</div>
+      <div class="box" style="left:2%;top:30%">🧺 <b>ถือตะกร้า</b></div>
+      <!-- left: joystick -->
+      <div class="box" style="left:4%;bottom:6%;width:17%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center">จอยเดิน</div>
+      <!-- right: buttons cluster -->
+      <div class="box" style="right:4%;bottom:8%;width:13%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;border-width:3px"><b>ยิง</b></div>
+      <div class="box" style="right:19%;bottom:5%;width:8%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px">เล็ง</div>
+      <div class="box" style="right:18%;bottom:27%;width:8%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px">รีโหลด</div>
+      <div class="box" style="right:6%;bottom:36%;width:8%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px">ประทัด3</div>
+      <div class="box dash" style="right:30%;bottom:16%;border-radius:8px"><b>วางของ</b></div>
+      <!-- weapon bar -->
+      <div class="box" style="left:50%;bottom:4%;transform:translateX(-50%);white-space:nowrap">[ลูกซอง BB 3/24] [ไม้กวด] [ขนม 2]</div>
+      <div class="box" style="left:2%;top:42%;font-size:11px">📞 โทร</div>
+    </div>
+    <p class="note">แบบมือถือ (จอแนวนอน): จอยซ้าย ปุ่มยิงใหญ่ขวา · ปุ่มเส้นประ = ปุ่มตามสถานการณ์ (วางของ / หยิบ / ชุบ / ถวาย / มัดตัว) โผล่เมื่ออยู่ใกล้ · ถือตะกร้า: ปุ่มเล็งกับรีโหลดใช้ไม่ได้ · ปัดจอเพื่อหมุนกล้อง</p>
+  </section>
+
+  <section>
+    <h2><span>4</span>ถวายอาหารที่กุฏิ</h2>
+    <div class="screen" style="background:#fff">
+      <div class="box center" style="width:62%">
+        <div style="font-size:16px"><b>ถวายอาหารสำเร็จ</b></div>
+        <div style="margin:8px 0;color:#555">พระมอบให้:</div>
+        <div class="grid" style="grid-template-columns:1fr 1fr">
+          <div class="card"><div class="pic">ถุงเงิน</div>เงิน (ต้องถือขึ้นบั้งไฟ)</div>
+          <div class="card"><div class="pic">ห่อขนม ×4</div>ขนม · กินได้ +250 HP ชั่วคราว 10 วิ</div>
+        </div>
+        <div style="margin-top:8px"><b>บั้งไฟพร้อมแล้ว!</b> ไปที่ฐานบั้งไฟ</div>
+      </div>
+    </div>
+    <p class="note">ถุงเงินกับขนมถือได้คนละชิ้น กติกาเดียวกับตะกร้า · หนีโดยไม่มีของก็รอด แต่ได้เงินน้อยลง</p>
+  </section>
+
+  <section>
+    <h2><span>5</span>ตายแล้วกลับเข้าแมพ</h2>
+    <div class="two">
+      <div>
+        <div class="screen" style="background:#eee">
+          <div class="box center"><div>📞 กำลังโทรเรียก C</div><div class="big">0:03</div><div style="color:#555">ระหว่างโทรยิงปืนไม่ได้</div></div>
+        </div>
+        <p class="note">ก. เพื่อนโทรเรียก 5 วิ → C ถูกยิงเข้ามาใกล้คนโทร</p>
+      </div>
+      <div>
+        <div class="screen" style="background:#fff">
+          <div class="box" style="left:50%;top:6%;transform:translateX(-50%);white-space:nowrap">ครบ 40 วิ · คุณอยู่ที่หนังสติ๊กยักษ์</div>
+          <svg viewBox="0 0 160 90" style="position:absolute;left:15%;top:28%;width:70%">
+            <rect x="2" y="2" width="156" height="86" fill="#fff" stroke="#111" stroke-width="1.5"/>
+            <path d="M100 50 L110 60 M110 50 L100 60" stroke="#111" stroke-width="2.5"/>
+            <text x="114" y="58" font-size="7">เลือกเป้า</text>
+          </svg>
+          <div class="box" style="right:3%;bottom:5%"><b>ยิงเลย</b></div>
+        </div>
+        <p class="note">ข. ไม่มีใครเรียกใน 40 วิ → เลือกจุดเองแล้วยิงตัวเข้ามา</p>
+      </div>
+    </div>
+    <p class="note">ล้มจากเพื่อนยิง: คลานรอชุบ 30 วิ · โดนลิงจนเลือดหมด: ตายทันที</p>
+  </section>
+
+  <section>
+    <h2><span>6</span>ฉากหนีด้วยบั้งไฟ</h2>
+    <div class="screen">
+      <div class="box" style="left:50%;top:5%;transform:translateX(-50%);text-align:center">
+        <b>จุดบั้งไฟแล้ว!</b> ไปมัดตัวให้ทัน<div class="big">0:41</div>
+      </div>
+      <svg viewBox="0 0 60 120" style="position:absolute;left:44%;top:30%;height:55%">
+        <path d="M30 5 L45 30 L45 95 L15 95 L15 30 Z" fill="#fff" stroke="#111" stroke-width="2"/>
+        <path d="M15 95 L5 112 M45 95 L55 112" stroke="#111" stroke-width="2"/>
+        <circle cx="30" cy="55" r="6" fill="#111"/><circle cx="30" cy="75" r="6" fill="none" stroke="#111" stroke-width="2"/>
+      </svg>
+      <div class="box" style="right:3%;top:34%">มัดแล้ว <b>2 / 4</b><br>✓ คุณ ✓ A<br>✗ B ✗ C<br>ถุงเงิน ✓ · ขนม ✗</div>
+      <div class="box dash" style="left:3%;bottom:6%">⚠ ครบเวลา ใครไม่อยู่จะถูกทิ้ง (เงิน −5%)</div>
+    </div>
+    <p class="note">ลิงยังบุกเข้ามาระหว่างรอ 60 วิ</p>
+  </section>
+
+  <section>
+    <h2><span>7</span>สรุปจบภารกิจ</h2>
+    <div class="screen" style="background:#fff">
+      <div class="box center" style="width:72%">
+        <div class="big" style="font-size:20px">หนีรอดสำเร็จ!</div>
+        <div style="font-size:12px;color:#555">ถุงเงิน ✓ · ขนม ✗ (รางวัลลดลง)</div>
+        <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:12px">
+          <tr style="border-bottom:2px solid #111"><th align="left">ผู้เล่น</th><th>ฆ่าลิง</th><th>เรียกเพื่อน</th><th align="right">เงิน</th></tr>
+          <tr><td>คุณ</td><td align="center">21</td><td align="center">2</td><td align="right">+520</td></tr>
+          <tr><td>A</td><td align="center">17</td><td align="center">1</td><td align="right">+500</td></tr>
+          <tr style="color:#777"><td>B (ถูกทิ้ง)</td><td align="center">19</td><td align="center">0</td><td align="right">+485</td></tr>
+        </table>
+        <span class="btn" style="margin-top:10px">เล่นอีกครั้ง</span> <span class="btn">กลับห้องรอ</span>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>
