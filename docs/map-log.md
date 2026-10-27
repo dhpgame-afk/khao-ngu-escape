@@ -42,4 +42,5 @@
 - ตอนแรก Rojo ไปต่อกับแมพสอนใช้งาน → ปิดแมพนั้นไม่ Save แล้วสร้างแมพใหม่
 - หา Game Settings ไม่เจอ → เมนูใหม่ชื่อ File → Experience Settings
 - ข้อความแดง `ContentId ... Asset type does not match` มาจาก Studio เอง ไม่ใช่โค้ดเรา ไม่ต้องสนใจ
+ไฟล์สำรอง: map-backups/map-00-start.rbxl (File → Download a Copy...)
 ได้เรียนรู้: Rojo ส่งได้แค่สคริปต์ แมพต้อง Save ใน Studio เอง

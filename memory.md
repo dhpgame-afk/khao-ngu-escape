@@ -14,7 +14,8 @@
 
 ## กับดัก / จุดที่ต้องระวัง
 - Rojo ซิงก์สคริปต์ได้ แต่ terrain และโมเดลที่ปั้นใน Studio ไม่ได้อยู่ใน `src/` — ต้อง Save/Publish place ใน Studio ด้วย และเก็บไฟล์ `.rbxl` สำรองเป็นระยะ
-- DataStore ใช้ใน Studio ได้ต่อเมื่อเปิด "Enable Studio Access to API Services" ใน Game Settings
+- DataStore ใช้ใน Studio ได้ต่อเมื่อเปิด "Enable Studio Access to API Services" (File → Experience Settings → Security)
+- เมนู Studio รุ่นใหม่ (2026) เปลี่ยนชื่อ: Game Settings → File → **Experience Settings** · Output → เมนู **Window** · Save to File As → File → **Download a Copy...**
 - ลิงกรณีแย่สุด 4 รัง × 20 ตัว = 80 ตัว เสี่ยงหน่วงบนโทรศัพท์ — วัด FPS บนเครื่องจริงแล้วค่อยปรับเพดาน
 - ห้ามใช้ชื่อ โลโก้ ภาพ หรือเสียงของ HELLDIVERS™ 2 — ใช้แค่แนวคิดการเล่น
 
