@@ -166,6 +166,18 @@ local function canAct(player: Player): Loadout?
 	if PlayerHealth.getState(player) ~= "Alive" then
 		return nil
 	end
+	-- กันโกง: ต้นกระสุนอ่านจากหัวที่ client คุมฟิสิกส์ — หัวห่างตัว (HumanoidRootPart) เกินปกติ = ปฏิเสธ
+	local head = headPosition(loadout.character)
+	local root = rootPart(loadout.character)
+	if head == nil or root == nil or (head - root.Position).Magnitude > Config.AntiCheat.MaxHeadOffset then
+		if Config.Debug.AntiCheat then
+			warn(
+				"[AntiCheat] หัวห่างตัวผิดปกติ ปฏิเสธการกระทำ:",
+				player.Name
+			)
+		end
+		return nil
+	end
 	return loadout
 end
 

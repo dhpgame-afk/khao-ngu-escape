@@ -2,6 +2,7 @@
 -- MapSetup: เตรียมแมพตอนเริ่มเซิร์ฟเวอร์ (ต้องเรียกก่อนระบบอื่นทั้งหมด — Mission / Monkeys อ่านจุดสำคัญจากที่นี่)
 -- 1) จุดสำคัญ Workspace.MapMarkers (Kuti, Nest1–4, RocketPad): สร้างเฉพาะจุดที่ยังไม่มี · ไม่ย้าย/ไม่ทับจุดที่มีอยู่แล้ว
 -- 2) กุฏิ Workspace.MapObjects.<Config.Kuti.Name>: สร้างจาก Part ถ้ายังไม่มี (เจ้าของใส่ของตัวเองแทนได้)
+-- 3) กำแพงล่องหนรอบแมพ Workspace.MapObjects.<Config.Boundary.FolderName>: สร้างถ้ายังไม่มี (บั้งไฟสร้างโดย Rocket.ensure)
 -- ตัวเลขทั้งหมดอยู่ใน Config.Map / Config.Kuti
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11,6 +12,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 
 local MapCfg = Config.Map
 local KutiCfg = Config.Kuti
+local BoundaryCfg = Config.Boundary
 local LaunchCfg = Config.Launch
 
 type MarkerDef = {
@@ -462,6 +464,49 @@ local function ensureKuti()
 	)
 end
 
+-- ===== กำแพงล่องหนรอบแมพ =====
+
+-- 4 ด้านชิดขอบแมพ (ขอบด้านในอยู่ที่ ±HalfWidth / ±HalfDepth) หนา Thickness ยื่นออกนอกแมพ · สูงจาก BottomY ถึง BottomY + Height
+-- Transparency 1 + CanCollide true (กันคนเดินออก) + CanQuery false (กระสุน/เรย์ทะลุ ไม่บังเรย์หาพื้นของระบบอื่น) + Anchored
+local function ensureBoundary()
+	local objects = MapSetup.getObjectsFolder()
+	if objects:FindFirstChild(BoundaryCfg.FolderName) ~= nil then
+		return -- เจ้าของทำเอง/มีอยู่แล้ว ใช้ของเดิม
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = BoundaryCfg.FolderName
+
+	local halfW, halfD = MapCfg.HalfWidthStuds, MapCfg.HalfDepthStuds
+	local t = BoundaryCfg.Thickness
+	local centerY = BoundaryCfg.BottomY + BoundaryCfg.Height / 2
+	-- เหนือ/ใต้ยาวเต็มความกว้างรวมความหนาของด้านข้าง (ไม่เหลือมุมโหว่) · ตะวันออก/ตะวันตกยาวเท่าความลึกแมพ
+	local walls = {
+		{
+			name = "WallNorth",
+			size = Vector3.new(2 * halfW + 2 * t, BoundaryCfg.Height, t),
+			x = 0,
+			z = -(halfD + t / 2),
+		},
+		{ name = "WallSouth", size = Vector3.new(2 * halfW + 2 * t, BoundaryCfg.Height, t), x = 0, z = halfD + t / 2 },
+		{ name = "WallWest", size = Vector3.new(t, BoundaryCfg.Height, 2 * halfD), x = -(halfW + t / 2), z = 0 },
+		{ name = "WallEast", size = Vector3.new(t, BoundaryCfg.Height, 2 * halfD), x = halfW + t / 2, z = 0 },
+	}
+	for _, wall in walls do
+		local part = Instance.new("Part")
+		part.Name = wall.name
+		part.Anchored = true
+		part.CanCollide = true
+		part.CanQuery = false
+		part.CanTouch = false
+		part.CastShadow = false
+		part.Transparency = 1
+		part.Size = wall.size
+		part.Position = Vector3.new(wall.x, centerY, wall.z)
+		part.Parent = folder
+	end
+	folder.Parent = objects
+end
+
 -- เรียกครั้งเดียวตอนเริ่มเซิร์ฟเวอร์ ก่อนระบบอื่นทั้งหมด · แต่ละขั้นครอบ pcall: พังขั้นหนึ่งไม่ล้มเซิร์ฟเวอร์
 function MapSetup.run()
 	local okMarkers, errMarkers = pcall(ensureMarkers)
@@ -471,6 +516,10 @@ function MapSetup.run()
 	local okKuti, errKuti = pcall(ensureKuti)
 	if not okKuti then
 		warn("[MapSetup] สร้างกุฏิไม่สำเร็จ:", errKuti)
+	end
+	local okBoundary, errBoundary = pcall(ensureBoundary)
+	if not okBoundary then
+		warn("[MapSetup] สร้างกำแพงรอบแมพไม่สำเร็จ:", errBoundary)
 	end
 end
 

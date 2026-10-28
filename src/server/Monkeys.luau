@@ -13,6 +13,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local PlayerData = require(script.Parent.PlayerData)
 local PlayerHealth = require(script.Parent.PlayerHealth)
 local MC = Config.Monkey
+local RaidCfg = Config.Rocket
 
 type Nest = {
 	index: number,
@@ -42,6 +43,7 @@ type MonkeyRec = {
 	waypointUntil: number,
 	asleep: boolean,
 	lastPos: Vector3,
+	raidPoint: Vector3?, -- ลิงบุกช่วงบั้งไฟ: จุดรวมพล (ฐานบั้งไฟ) · nil = ลิงรังปกติ
 }
 
 local Monkeys = {}
@@ -50,12 +52,23 @@ local nests: { Nest } = {}
 local records: { [Model]: MonkeyRec } = {} -- เฉพาะลิงที่ยังมีชีวิต
 local corpses: { [Model]: boolean } = {}
 local aliveCount = 0
+local missionKills: { [Player]: number } = {} -- สถิติรอบภารกิจนี้ (หน้าสรุปผล) · เริ่มใหม่ตอนยิงหนังสติ๊กเริ่มภารกิจ
+local missionKillMoney: { [Player]: number } = {} -- เงินที่ได้จากฆ่าลิงรอบนี้ (จ่ายสดตอนฆ่าแล้ว ที่นี่แค่จดไว้โชว์)
 local started = false
 local monkeyFolder: Folder? = nil
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
 local rng = Random.new()
+
+-- ระบบอื่นตั้งให้ (Mission): คืน true = ผู้เล่นคนนี้ไม่ใช่เป้าของลิงบุก (เช่น มัดตัวอยู่บนบั้งไฟ) · ใช้ตัวกรองแทน require เพื่อกัน require วนกัน
+local raidTargetExcluded: (Player) -> boolean = function(_player: Player): boolean
+	return false
+end
+
+function Monkeys.setRaidTargetExcluded(filter: (Player) -> boolean)
+	raidTargetExcluded = filter
+end
 
 -- ===== เครื่องมือย่อย =====
 
@@ -160,10 +173,11 @@ local function removeRecord(rec: MonkeyRec)
 	end
 end
 
-local function spawnMonkey(nest: Nest, isReinforcement: boolean, x: number, z: number)
+-- raidPoint ไม่ว่าง = ลิงบุก (ไม่นับโควตาเรียกพวกของรัง) · คืน true ถ้าเกิดจริง (เพดาน MaxTotal เต็ม = false)
+local function spawnMonkey(nest: Nest, isReinforcement: boolean, x: number, z: number, raidPoint: Vector3?): boolean
 	local folder = monkeyFolder
 	if folder == nil or aliveCount >= MC.MaxTotal then
-		return
+		return false
 	end
 	local y = groundY(x, z, nest.position.Y) + 3
 	local angle = rng:NextNumber(0, math.pi * 2)
@@ -186,10 +200,14 @@ local function spawnMonkey(nest: Nest, isReinforcement: boolean, x: number, z: n
 		waypointUntil = 0,
 		asleep = false,
 		lastPos = root.Position,
+		raidPoint = raidPoint,
 	}
 	records[model] = rec
 	aliveCount += 1
-	if isReinforcement then
+	if raidPoint ~= nil then
+		-- ลิงบุกไม่นับเป็นลิงปกติ/ลิงเรียกพวกของรัง (ผู้เรียกส่ง isReinforcement = true กัน removeRecord ไปลดจำนวนลิงปกติ)
+		assert(isReinforcement, "ลิงบุกต้องส่ง isReinforcement = true")
+	elseif isReinforcement then
 		nest.reinforcedTotal += 1
 	else
 		nest.aliveBase += 1
@@ -207,6 +225,7 @@ local function spawnMonkey(nest: Nest, isReinforcement: boolean, x: number, z: n
 		removeRecord(rec)
 		corpses[model] = nil
 	end)
+	return true
 end
 
 local function sinkCorpse(model: Model)
@@ -243,8 +262,12 @@ local function killMonkey(rec: MonkeyRec, attacker: Player?)
 	end
 
 	if attacker ~= nil and attacker.Parent == Players then
-		PlayerData.addMoney(attacker, MC.MoneyPerKill)
+		-- จดเงินลงสถิติเฉพาะเมื่อจ่ายได้จริง (เซฟไม่ได้ = ไม่ได้เงิน ไม่โชว์เงินที่ไม่มีอยู่จริง)
+		if PlayerData.addMoney(attacker, MC.MoneyPerKill) then
+			missionKillMoney[attacker] = (missionKillMoney[attacker] or 0) + MC.MoneyPerKill
+		end
 		PlayerData.addStat(attacker, "monkeysKilled", 1)
+		missionKills[attacker] = (missionKills[attacker] or 0) + 1
 	end
 
 	-- ล้มนิ่ง ไม่มีเลือด ไม่มีการทำลายร่าง
@@ -308,7 +331,67 @@ local function pickWaypoint(rec: MonkeyRec, now: number)
 	rec.humanoid:MoveTo(rec.waypoint :: Vector3)
 end
 
+-- ไล่/ตีเป้าหมาย (ใช้ร่วมกันทั้งลิงรังและลิงบุก)
+local function chaseOrAttack(rec: MonkeyRec, target: PlayerInfo, targetDist: number, movedLittle: boolean, now: number)
+	local pos = rec.root.Position
+	if targetDist <= MC.AttackRange then
+		rec.humanoid:MoveTo(pos) -- หยุดตี
+		if now - rec.lastAttack >= MC.AttackIntervalSeconds then
+			rec.lastAttack = now
+			-- PlayerHealth ตรวจสถานะล่าสุดเอง (ถ้าเพิ่งชุบ/ตาย/ออกเกม/มัดตัวบนบั้งไฟ จะจัดการถูกต้องหรือไม่มีผล)
+			local ok, err = pcall(PlayerHealth.damageFromMonkey, target.player, MC.AttackDamage)
+			if not ok then
+				warn("[Monkeys] damageFromMonkey error:", err)
+			end
+		end
+	else
+		setSpeed(rec, MC.ChaseSpeed)
+		rec.humanoid:MoveTo(target.pos)
+		if movedLittle then
+			rec.humanoid.Jump = true -- ข้ามสิ่งกีดขวางเล็ก ๆ
+		end
+	end
+end
+
+-- ลิงบุก: ไล่ผู้เล่นที่ตีได้ซึ่งอยู่ใกล้จุดรวมพลที่สุด (ไม่สนระยะเห็น/ระยะผูกรัง) · ไม่มีใครอยู่ใกล้ → วิ่งไปรอที่จุดรวมพล
+local function updateRaider(rec: MonkeyRec, raidPoint: Vector3, players: { PlayerInfo }, now: number)
+	local pos = rec.root.Position
+	local movedLittle = (pos - rec.lastPos).Magnitude < 0.2
+	rec.lastPos = pos
+	rec.asleep = false
+
+	local target: PlayerInfo? = nil
+	local targetDist = math.huge
+	for _, info in players do
+		if
+			info.alive
+			and horizontalDistance(info.pos, raidPoint) <= RaidCfg.RaidTargetRadius
+			and not raidTargetExcluded(info.player)
+		then
+			local d = (info.pos - pos).Magnitude
+			if d < targetDist then
+				target = info
+				targetDist = d
+			end
+		end
+	end
+	if target ~= nil then
+		chaseOrAttack(rec, target, targetDist, movedLittle, now)
+		return
+	end
+	setSpeed(rec, MC.ChaseSpeed)
+	rec.humanoid:MoveTo(raidPoint)
+	if movedLittle then
+		rec.humanoid.Jump = true
+	end
+end
+
 local function updateMonkey(rec: MonkeyRec, players: { PlayerInfo }, now: number)
+	local raidPoint = rec.raidPoint
+	if raidPoint ~= nil then
+		updateRaider(rec, raidPoint, players, now)
+		return
+	end
 	local pos = rec.root.Position
 	local nest = rec.nest
 
@@ -366,23 +449,7 @@ local function updateMonkey(rec: MonkeyRec, players: { PlayerInfo }, now: number
 	end
 
 	if target ~= nil then
-		if targetDist <= MC.AttackRange then
-			rec.humanoid:MoveTo(pos) -- หยุดตี
-			if now - rec.lastAttack >= MC.AttackIntervalSeconds then
-				rec.lastAttack = now
-				-- PlayerHealth ตรวจสถานะล่าสุดเอง (ถ้าเพิ่งชุบ/ตาย/ออกเกม จะจัดการถูกต้องหรือไม่มีผล)
-				local ok, err = pcall(PlayerHealth.damageFromMonkey, target.player, MC.AttackDamage)
-				if not ok then
-					warn("[Monkeys] damageFromMonkey error:", err)
-				end
-			end
-		else
-			setSpeed(rec, MC.ChaseSpeed)
-			rec.humanoid:MoveTo(target.pos)
-			if movedLittle then
-				rec.humanoid.Jump = true -- ข้ามสิ่งกีดขวางเล็ก ๆ
-			end
-		end
+		chaseOrAttack(rec, target, targetDist, movedLittle, now)
 		return
 	end
 
@@ -511,17 +578,69 @@ function Monkeys.damageMonkey(model: Model, amount: number, attacker: Player?)
 	end
 
 	-- ผู้เล่นเริ่มโจมตีรังนี้ → เริ่มจับเวลาเรียกพวก
+	-- (ลิงบุกช่วงบั้งไฟไม่นับ: ตีลิงบุกไม่ทำให้รังนั้นเริ่มเรียกพวกเพิ่ม)
 	local nest = rec.nest
-	if not nest.attacked then
-		nest.attacked = true
-		nest.nextReinforceAt = os.clock() + MC.ReinforceIntervalSeconds
+	if rec.raidPoint == nil then
+		if not nest.attacked then
+			nest.attacked = true
+			nest.nextReinforceAt = os.clock() + MC.ReinforceIntervalSeconds
+		end
+		nest.alert = true
 	end
-	nest.alert = true
 
 	rec.hp -= amount
 	if rec.hp <= 0 then
 		killMonkey(rec, owner)
 	end
+end
+
+-- ลิงบุกช่วงนับถอยหลังบั้งไฟ: เรียกลิง count ตัวจากรังที่ใกล้ position (ฐานบั้งไฟ) ที่สุด ให้ไล่ผู้เล่นแถวนั้นทันที
+-- เคารพเพดาน MaxTotal (เต็มแล้วเกิดน้อยลง/ไม่เกิด) · คืนจำนวนที่เกิดจริง
+function Monkeys.spawnRaid(position: Vector3, count: number): number
+	if not started or #nests == 0 or type(count) ~= "number" or count < 1 then
+		return 0
+	end
+	local nearest: Nest = nests[1]
+	local nearestDist = horizontalDistance(nearest.position, position)
+	for _, nest in nests do
+		local d = horizontalDistance(nest.position, position)
+		if d < nearestDist then
+			nearest = nest
+			nearestDist = d
+		end
+	end
+	local spawned = 0
+	for _ = 1, math.floor(count) do
+		-- เกิดที่ขอบรัง (เหมือนลิงเรียกพวก)
+		local a = rng:NextNumber(0, math.pi * 2)
+		local r = MC.NestWanderRadius + 5
+		if
+			spawnMonkey(
+				nearest,
+				true,
+				nearest.position.X + math.cos(a) * r,
+				nearest.position.Z + math.sin(a) * r,
+				position
+			)
+		then
+			spawned += 1
+		end
+	end
+	return spawned
+end
+
+-- สถิติรอบภารกิจนี้ (หน้าสรุปผล) · ฆ่ากี่ตัว / เงินจากการฆ่า
+function Monkeys.getMissionKills(player: Player): number
+	return missionKills[player] or 0
+end
+
+function Monkeys.getMissionKillMoney(player: Player): number
+	return missionKillMoney[player] or 0
+end
+
+function Monkeys.resetMissionStats()
+	missionKills = {}
+	missionKillMoney = {}
 end
 
 -- ให้ระบบภารกิจเรียกเมื่อเริ่มภารกิจใหม่: ล้างแล้วเกิดลิงรังละ NestBaseMax ตัวใหม่
@@ -547,6 +666,11 @@ function Monkeys.start()
 		return
 	end
 	started = true
+
+	Players.PlayerRemoving:Connect(function(player: Player)
+		missionKills[player] = nil
+		missionKillMoney[player] = nil
+	end)
 
 	local existing = Workspace:FindFirstChild("Monkeys")
 	local folder: Folder

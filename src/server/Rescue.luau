@@ -6,7 +6,7 @@
 --       → ผู้เล่นลากนิ้วเล็งบนแผนที่ แล้วส่ง SlingshotFire(x, z) → บินไปลงจุดนั้น
 --       → ไม่ยิงใน Config.Rescue.AimSeconds → ยิงอัตโนมัติไปจุดลงของภารกิจ
 --   ถ้าสายโทรเสร็จตอนคนตายรอเล็งหนังสติ๊กอยู่ สายโทรมาก่อน (ยกเลิกหน้าจอเล็ง แล้วบินไปหาคนโทร)
--- - ใช้เฉพาะผู้ร่วมภารกิจในช่วง InMission · ออกจากช่วงนี้ (หรือภารกิจจบ) = ล้างทุกอย่างและปลดตรึงทุกคน
+-- - ใช้เฉพาะผู้ร่วมภารกิจในช่วง InMission / Rocket · ออกจากสองช่วงนี้ (หรือภารกิจจบ) = ล้างทุกอย่างและปลดตรึงทุกคน
 -- - สถานะอยู่ฝั่งเซิร์ฟเวอร์ ส่งให้ client ผ่าน RemoteEvent "RescueState" (ไม่ใช่ข้อมูลลับ)
 -- - ไม่ require Mission (กันพึ่งกันเป็นวงกลม) — Mission ส่งฟังก์ชันที่ต้องใช้เข้ามาทาง Rescue.init(deps)
 
@@ -21,6 +21,7 @@ local Lobby = require(script.Parent.Lobby)
 local Combat = require(script.Parent.Combat)
 local PlayerHealth = require(script.Parent.PlayerHealth)
 local Flight = require(script.Parent.Flight)
+local AntiTeleport = require(script.Parent.AntiTeleport)
 
 local RC = Config.Rescue
 local LaunchCfg = Config.Launch
@@ -48,7 +49,7 @@ type Call = {
 }
 
 export type Deps = {
-	getPhase: () -> string, -- "InMission" เท่านั้นที่ใช้ระบบนี้ได้
+	getPhase: () -> string, -- "InMission" และ "Rocket" เท่านั้นที่ใช้ระบบนี้ได้
 	isParticipant: (Player) -> boolean,
 	getParticipants: () -> { Player },
 	getLanding: () -> Vector3?, -- จุดลงจริงของภารกิจ (หลัง raycast ลงพื้น)
@@ -57,6 +58,7 @@ export type Deps = {
 	groundPoint: (x: number, z: number, startY: number?) -> Vector3,
 	clampLanding: (x: number, z: number) -> (number, number),
 	recordCall: (Player) -> (), -- นับ callsMade ใน Mission
+	isHeldInPlace: (Player) -> boolean, -- ผู้เล่นที่ระบบอื่นตรึงไว้เอง (มัดตัวบนบั้งไฟ): cleanupAll ห้ามปลดตรึงคนนี้
 }
 
 local Rescue = {}
@@ -87,6 +89,9 @@ local deps: Deps = {
 		return x, z
 	end,
 	recordCall = function(_player: Player) end,
+	isHeldInPlace = function(_player: Player): boolean
+		return false
+	end,
 }
 
 local callCooldownUntil: { [Player]: number } = {} -- คนโทรที่เพิ่งวางสาย/ถูกตัดสาย: โทรใหม่ไม่ได้จนถึง os.clock นี้ (กันกวนเวลานับของคนตาย)
@@ -125,8 +130,10 @@ local function serverTimeOf(clockValue: number): number
 	return Workspace:GetServerTimeNow() + (clockValue - os.clock())
 end
 
+-- ใช้ระบบกลับเข้าแมพได้ช่วง InMission และช่วงบั้งไฟ (Rocket) — คนตายต้องกลับเข้าแมพมามัดตัวทันในช่วงนับถอยหลัง 60 วิ
 local function isMissionActive(): boolean
-	return deps.getPhase() == "InMission"
+	local phase = deps.getPhase()
+	return phase == "InMission" or phase == "Rocket"
 end
 
 -- ตั้ง Attribute "Calling" บนตัวละคร (ให้ client ของคนโทรเลิกยิง/ขว้างทันที ไม่ลดกระสุนในจอเอง)
@@ -306,6 +313,7 @@ local function forceRelease(entry: Entry, endPos: Vector3)
 	root.CFrame = CFrame.new(endPos)
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.Anchored = false
+	AntiTeleport.reset(entry.player)
 	completeLanding(entry)
 end
 
@@ -692,7 +700,7 @@ function Rescue.cleanupAll()
 	callCooldownUntil = {}
 	for _, player in affected do
 		local root = rootOf(player)
-		if root ~= nil then
+		if root ~= nil and not deps.isHeldInPlace(player) then
 			root.Anchored = false
 		end
 	end
@@ -775,7 +783,7 @@ function Rescue.init(dependencies: Deps)
 	Remotes.remoteEvent("CallFriendCancel").OnServerEvent:Connect(onCallCancel) -- ()
 	Remotes.remoteEvent("SlingshotFire").OnServerEvent:Connect(onSlingshotFire) -- (x: number, z: number)
 	PlayerHealth.setDeathHandler(Rescue.onDeath)
-	PlayerHealth.setDamageGuard(Rescue.isBusy) -- ตาย/เล็ง/กำลังบินกลับ: ไม่รับดาเมจ
+	PlayerHealth.addDamageGuard(Rescue.isBusy) -- ตาย/เล็ง/กำลังบินกลับ: ไม่รับดาเมจ
 
 	task.spawn(function()
 		while true do

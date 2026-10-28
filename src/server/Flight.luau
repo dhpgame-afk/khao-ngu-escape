@@ -5,6 +5,8 @@
 
 local RunService = game:GetService("RunService")
 
+local AntiTeleport = require(script.Parent.AntiTeleport)
+
 local Flight = {}
 
 export type Leg = {
@@ -64,6 +66,7 @@ function Flight.land(leg: Leg)
 		leg.root.CFrame = CFrame.lookAt(leg.endPos, leg.endPos + leg.facing)
 		leg.root.AssemblyLinearVelocity = Vector3.zero
 		leg.root.Anchored = false
+		AntiTeleport.reset(leg.player) -- ตำแหน่งลงพื้นเซิร์ฟเวอร์วางให้ ไม่ใช่การเทเลพอร์ตของผู้เล่น
 	end
 end
 

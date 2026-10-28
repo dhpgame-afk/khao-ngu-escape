@@ -39,7 +39,12 @@ type Session = {
 
 local PlayerData = {}
 
-local store = DataStoreService:GetDataStore(DataConfig.StoreName)
+-- Studio ใช้ที่เก็บแยกจากเกมจริง (ต่อท้ายชื่อด้วย StudioStoreSuffix) กันข้อมูลทดสอบปนกับข้อมูลผู้เล่นจริง
+local storeName: string = DataConfig.StoreName
+if RunService:IsStudio() then
+	storeName ..= DataConfig.StudioStoreSuffix
+end
+local store = DataStoreService:GetDataStore(storeName)
 local sessions: { [Player]: Session } = {}
 local closing = false
 local dataChanged: RemoteEvent? = nil
@@ -520,9 +525,10 @@ local function isPositiveInteger(n: any): boolean
 	return type(n) == "number" and n == n and n >= 1 and n < 2 ^ 31 and n % 1 == 0
 end
 
+-- เพิ่มเงิน — ไม่ทำอะไรและคืน false ถ้าเซฟข้อมูลคนนี้ไม่ได้ (canTransact = false) กันเงินที่ไม่มีวันถูกบันทึก
 function PlayerData.addMoney(player: Player, amount: number): boolean
 	local session = sessions[player]
-	if session == nil or not session.loaded or not isPositiveInteger(amount) then
+	if session == nil or not PlayerData.canTransact(player) or not isPositiveInteger(amount) then
 		return false
 	end
 	session.data.money += amount
@@ -547,7 +553,7 @@ end
 -- คืน (ขนมที่เก็บได้จริง, เงินที่ได้จากส่วนเกิน)
 function PlayerData.addSnacks(player: Player, amount: number): (number, number)
 	local session = sessions[player]
-	if session == nil or not session.loaded or not isPositiveInteger(amount) then
+	if session == nil or not PlayerData.canTransact(player) or not isPositiveInteger(amount) then
 		return 0, 0
 	end
 	local room = Config.Snacks.MaxStored - session.data.snacks

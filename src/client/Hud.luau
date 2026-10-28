@@ -122,6 +122,40 @@ local function makeButton(
 	return button
 end
 
+-- แถบเตือนระบบบันทึกข้อมูลขัดข้อง: ค้างบนจอตลอด (ไม่มีปุ่มปิด) เหนือทุกหน้าจอ รวมห้องรอ · เรียกซ้ำเปลี่ยนข้อความได้
+local warningLabel: TextLabel? = nil
+function Hud.showDataWarning(text: string)
+	if warningLabel == nil then
+		local gui = Instance.new("ScreenGui")
+		gui.Name = "DataWarning"
+		gui.ResetOnSpawn = false
+		gui.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
+		gui.IgnoreGuiInset = true
+		gui.DisplayOrder = 10
+		gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+		local back = Instance.new("Frame")
+		back.Name = "Banner"
+		back.Position = UDim2.fromScale(0.28, 0.005)
+		back.Size = UDim2.fromScale(0.44, 0.1)
+		back.BackgroundColor3 = Color3.fromRGB(150, 60, 30)
+		back.BackgroundTransparency = 0.1
+		back.BorderSizePixel = 0
+		back.Parent = gui
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.2, 0)
+		corner.Parent = back
+		warningLabel = makeLabel(back, "Text", "", UDim2.fromScale(0.03, 0.08), UDim2.fromScale(0.94, 0.84))
+		if warningLabel ~= nil then
+			warningLabel.TextWrapped = true
+			warningLabel.TextColor3 = Color3.fromRGB(255, 240, 200)
+		end
+	end
+	if warningLabel ~= nil then
+		warningLabel.Text = "ระบบบันทึกขัดข้อง — " .. text
+	end
+end
+
 -- ให้โมดูลอื่นสร้างปุ่ม/ป้ายสไตล์เดียวกับ HUD (เช่น RescueUi)
 Hud.makeButton = makeButton
 Hud.makeLabel = makeLabel

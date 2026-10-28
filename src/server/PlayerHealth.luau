@@ -122,13 +122,21 @@ function PlayerHealth.setDeathHandler(handler: (Player) -> boolean)
 	deathHandler = handler
 end
 
--- ตัวกันดาเมจ (Rescue ตั้งให้): คืน true = ผู้เล่นคนนี้ไม่รับดาเมจจากลิง/เพื่อน (กำลังบินกลับเข้าแมพ/เล็งหนังสติ๊ก)
-local damageGuard: (Player) -> boolean = function(_player: Player): boolean
-	return false
+-- ตัวกันดาเมจ: ระบบอื่นเพิ่มได้หลายตัว (Rescue: ตาย/เล็ง/กำลังบินกลับ · Mission: มัดตัวขึ้นบั้งไฟ/ช่วงสรุปผล)
+-- ตัวใดตัวหนึ่งคืน true = ผู้เล่นคนนี้ไม่รับดาเมจจากลิง/เพื่อน
+local damageGuards: { (Player) -> boolean } = {}
+
+function PlayerHealth.addDamageGuard(guard: (Player) -> boolean)
+	table.insert(damageGuards, guard)
 end
 
-function PlayerHealth.setDamageGuard(guard: (Player) -> boolean)
-	damageGuard = guard
+local function isDamageGuarded(player: Player): boolean
+	for _, guard in damageGuards do
+		if guard(player) then
+			return true
+		end
+	end
+	return false
 end
 
 function PlayerHealth.respawnAfterDeath(player: Player)
@@ -224,8 +232,8 @@ local function applyDamage(player: Player, amount: number, killsOutright: boolea
 	if info == nil or info.state ~= "Alive" then
 		return -- ล้ม/ตายแล้ว: ไม่รับดาเมจเพิ่ม (นับถอยหลังเดิมเดินต่อ)
 	end
-	if damageGuard(player) then
-		return -- กำลังบินกลับเข้าแมพ/เล็งหนังสติ๊ก
+	if isDamageGuarded(player) then
+		return -- กำลังบินกลับเข้าแมพ/เล็งหนังสติ๊ก/มัดตัวบนบั้งไฟ/ช่วงสรุปผล
 	end
 	if not isFiniteNumber(amount) or amount <= 0 then
 		return
@@ -250,7 +258,7 @@ end
 -- ถ้าเป้าล้มอยู่: ตีได้ แต่ลดเลือดตอนล้มแค่ amount × DownedDamageMultiplier · หมด → ตายทันที
 function PlayerHealth.damageFromMonkey(player: Player, amount: number)
 	local info = infos[player]
-	if damageGuard(player) then
+	if isDamageGuarded(player) then
 		return
 	end
 	if info ~= nil and info.state == "Downed" then
@@ -472,7 +480,7 @@ function PlayerHealth.init()
 		if not RateLimit.allow(player, "ReviveHold", Config.Combat.ActionMinIntervalSeconds) then
 			return
 		end
-		if not isFiniteNumber(targetUserId) or targetUserId % 1 ~= 0 then
+		if not isFiniteNumber(targetUserId) or targetUserId % 1 ~= 0 or math.abs(targetUserId) >= 2 ^ 53 then
 			return
 		end
 		startRevive(player, targetUserId)

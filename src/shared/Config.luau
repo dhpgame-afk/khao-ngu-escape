@@ -236,6 +236,8 @@ local Config = {
 		MetersPerStud = 0.28, -- ใช้แสดงระยะไปเป้าหมายเป็นเมตร
 		-- ชื่อจุดสำคัญใน Workspace.MapMarkers (Kuti = กุฏิ · Nest1–4 = รังลิง · RocketPad = ฐานบั้งไฟ)
 		MarkerNames = { "Kuti", "Nest1", "Nest2", "Nest3", "Nest4", "RocketPad" },
+		VoidY = -60, -- ผู้ร่วมภารกิจตกต่ำกว่าความสูงนี้ (ตกโลก) → เซิร์ฟเวอร์พากลับจุดปลอดภัย
+		VoidCheckSeconds = 1, -- ตรวจตกโลกทุกกี่วินาที
 		MarkersFolderName = "MapMarkers", -- โฟลเดอร์จุดสำคัญใน Workspace (MapSetup สร้างให้ถ้าไม่มี)
 		ObjectsFolderName = "MapObjects", -- โฟลเดอร์สิ่งถาวรบนแมพ (กุฏิ พระ) · ไม่ถูกล้างตอนจบภารกิจ (ต่างจาก Mission.ObjectsFolderName)
 		-- จุดสำคัญจะมองไม่เห็นในเกมถ้า false (ใช้แค่เป็นพิกัดให้โค้ดอ่าน) · true = แท่งสีนีออน+ป้ายชื่อ ไว้ดีบักตำแหน่ง
@@ -290,6 +292,24 @@ local Config = {
 				size = Vector3.new(30, 4, 30),
 			},
 		},
+	},
+
+	-- กันโกงฝั่งเซิร์ฟเวอร์ (AntiTeleport / Combat): ตั้งให้หลวมพอที่เล่นปกติไม่โดนดึงกลับ (วิ่ง ลาดเอียง กระโดด เน็ตหน่วง)
+	AntiCheat = {
+		TickSeconds = 0.2, -- รอบตรวจตำแหน่ง
+		SpeedMultiplier = 1.6, -- ยอมให้เร็วกว่า WalkSpeed กี่เท่า
+		SlackStuds = 10, -- ยอมเพิ่มต่อวินาที (ชดเชยเน็ตกระตุก/ลาดชัน) — เพดานต่อรอบ = (WalkSpeed × SpeedMultiplier + SlackStuds) × dt
+		MaxDtSeconds = 1.5, -- dt ที่ใช้คิดเพดานไม่เกินนี้ (เซิร์ฟเวอร์สะดุดนานก็ไม่ยอมให้เทเลพอร์ตไกลมาก)
+		MaxHeadOffset = 3, -- Combat: หัวห่างจาก HumanoidRootPart เกินนี้ (stud) = ตัวละครผิดปกติ ปฏิเสธการยิง/ขว้าง/ฟาด
+	},
+
+	-- กำแพงล่องหนรอบแมพ (MapSetup สร้างตอนเริ่มเซิร์ฟเวอร์ถ้าไม่มี Workspace.MapObjects.<FolderName>) — ผู้เล่นเดินออกนอกแมพไม่ได้
+	-- ไม่บังกระสุน/เรย์ (CanQuery = false) · ขอบด้านในชิดขอบแมพ (Config.Map.HalfWidthStuds / HalfDepthStuds)
+	Boundary = {
+		FolderName = "Boundary",
+		BottomY = -150, -- ขอบล่างของกำแพง (ต่ำกว่าภูมิประเทศมาก)
+		Height = 900, -- สูงรวม (ขอบบน = BottomY + Height)
+		Thickness = 20,
 	},
 
 	-- กุฏิพระ: อาคารไม้ยกพื้นสร้างจาก Part (MapSetup สร้างตอนเริ่มเซิร์ฟเวอร์ถ้าไม่มี Workspace.MapObjects.<Name>)
@@ -542,18 +562,98 @@ local Config = {
 		ExchangeMoney = 25, -- แลกห่อละ 25 เงิน (เกินเพดานแลกเป็นเงินอัตโนมัติด้วยอัตราเดียวกัน)
 	},
 
+	-- บั้งไฟ: ถวายอาหารแล้ว → จุดชนวน → นับถอยหลัง 60 วิ (ลิงยังบุก) → มัดตัวขึ้นบั้งไฟ → ยิงขึ้นฟ้า → สรุปผล
 	Rocket = {
 		CountdownSeconds = 60,
-		LeftBehindPenalty = 0.05, -- ถูกทิ้ง ได้เงินน้อยกว่าเพื่อน 5%
+		LeftBehindMultiplier = 0.95, -- ถูกทิ้ง (ไม่ได้ขึ้นบั้งไฟตอนนับครบ) ได้เงินน้อยกว่าเพื่อน 5%
+		ResultsSeconds = 12, -- โชว์หน้าสรุปผลกี่วิ แล้วพากลับห้องรอ
+		IgniteRange = 14, -- ยืนห่างบั้งไฟ (แนวราบ) ไม่เกินกี่ stud ถึงจุดชนวนได้
+		TieRange = 12, -- ยืนห่างบั้งไฟ (แนวราบ) ไม่เกินกี่ stud ถึงมัดตัวได้
+		RangeTolerance = 4, -- เซิร์ฟเวอร์ยอมให้เกินระยะอีกนิด (ชดเชยเน็ตหน่วง)
+		VerticalTolerance = 25, -- ต่างความสูงจากฐานบั้งไฟเกินนี้ถือว่าไม่ได้อยู่ใกล้ (กันยืนบนหน้าผาข้างบน)
+		IgniteMinIntervalSeconds = 0.5,
+		TieMinIntervalSeconds = 0.5,
+		TickSeconds = 0.25, -- รอบตรวจฝั่งเซิร์ฟเวอร์ตอนนับถอยหลัง (ลิงบุก / อัปเดตสถานะ)
+		ToastSeconds = 4,
+
+		-- ลิงบุกระหว่างนับถอยหลัง: ทุก RaidIntervalSeconds เรียกลิง RaidCount ตัวจากรังที่ใกล้ฐานบั้งไฟที่สุด
+		-- (ไม่เกินเพดาน Config.Monkey.MaxTotal) · ลิงบุกไล่ผู้เล่นที่อยู่ใกล้ฐานบั้งไฟทันที ไม่สนระยะเห็น/ระยะผูกรัง
+		RaidIntervalSeconds = 15,
+		RaidCount = 3,
+		RaidTargetRadius = 70, -- ลิงบุกเลือกเป้าเฉพาะผู้เล่นที่อยู่ห่างฐานบั้งไฟไม่เกินนี้ (ไม่มี → วิ่งไปรอที่ฐาน)
+
+		-- ยิงบั้งไฟขึ้นฟ้า: ทั้งตัวบั้งไฟและคนที่มัดตัวไว้ลอยขึ้นตรง ๆ (เซิร์ฟเวอร์ขยับเอง)
+		LaunchSeconds = 4,
+		LaunchRiseStuds = 300,
+		WatchdogExtraSeconds = 15, -- ตัวเฝ้า: ถ้าเลย (นับถอยหลัง + ยิง + สรุปผล) ไปอีกเท่านี้แล้วยังไม่กลับห้องรอ → บังคับจบภารกิจ
+
+		-- ตัวมัดตัว: ผู้เล่นที่มัดแล้วถูกตรึงไว้ที่จุดมัด (Anchored) ยิงได้แต่ขยับไม่ได้ · ไม่รับดาเมจ (จึงไม่ล้มค้างบนบั้งไฟ)
+		TieWindowSeconds = 15, -- มัดตัวได้เฉพาะ 15 วิสุดท้ายของการนับถอยหลัง (ก่อนหน้านั้นต้องยื้อ)
+		TieRootHeight = 3.3, -- วาง HumanoidRootPart สูงจากจุดมัด (วงกลมบนพื้นแท่น) เท่านี้
+
+		-- ควัน/ประกาย (ParticleEmitter ฝั่งเซิร์ฟเวอร์ ปิดไว้จนจุดชนวน) — ประหยัดเครื่อง: อัตราต่ำ
+		FuseSparkRate = 18,
+		LaunchSmokeRate = 45,
+		LaunchFlameRate = 30,
+
+		-- ตัวบั้งไฟ: สร้างจาก Part ล้วน ๆ ตอนเริ่มเซิร์ฟเวอร์ ถ้าไม่มี Workspace.MapObjects.<ModelName>
+		-- ถ้าเจ้าของทำเอง: ใส่ Model ชื่อเดียวกัน (ควรมี Model ย่อย "Body" = ส่วนที่ลอยขึ้น และ Part "TieSpot1".."TieSpot4" = จุดมัด)
+		Build = {
+			ModelName = "Rocket",
+			BodyDiameter = 3,
+			BodyHeight = 22,
+			BodyColor = Color3.fromRGB(226, 200, 150), -- ไม้ไผ่สีอ่อน
+			NodeColor = Color3.fromRGB(176, 140, 86), -- ข้อไผ่
+			NodeCount = 4,
+			NodeDiameterExtra = 0.4,
+			NodeHeight = 0.5,
+			NoseTierCount = 4, -- ปลายแหลมเป็นขั้น ๆ (แดง/ทองสลับ)
+			NoseTierHeight = 1.4,
+			NoseBaseDiameter = 3.2,
+			NoseColors = { Color3.fromRGB(205, 45, 40), Color3.fromRGB(235, 190, 60) },
+			TipDiameter = 0.8,
+			FinSize = Vector3.new(0.3, 4, 7), -- หนา × สูง × กว้างรวม (ยื่นออกจากตัวข้างละ 2)
+			FinColor = Color3.fromRGB(150, 100, 55),
+			FuseSize = Vector3.new(0.3, 1.4, 0.3), -- สายชนวนที่ก้นบั้งไฟ
+			FuseColor = Color3.fromRGB(60, 45, 35),
+			-- แท่นยิง: พื้นไม้ยกสูง + ขา 4 ต้น + เสากรอบด้านหลัง (ไม่ต้องปีนขึ้น — กดมัดตัวแล้วเซิร์ฟเวอร์วางคนที่จุดมัดให้)
+			DeckSize = Vector3.new(18, 1, 18),
+			DeckHeight = 5, -- ผิวบนของแท่นสูงจากพื้นเท่านี้
+			DeckColor = Color3.fromRGB(125, 85, 48),
+			LegSize = Vector3.new(1.4, 8, 1.4), -- ฝังลงดินเผื่อพื้นลาด
+			LegInset = 1.2,
+			FramePostSize = Vector3.new(1, 18, 1),
+			FramePostSpacing = 12,
+			FrameBarSize = Vector3.new(14, 0.8, 0.8),
+			FrameColor = Color3.fromRGB(150, 100, 55),
+			-- จุดมัด 4 จุดรอบตัวบั้งไฟ (ระดับแท่น): วงเชือกบนพื้น + ปมเชือกที่ตัวบั้งไฟ
+			TieSpotCount = 4,
+			TieSpotRadius = 3.2, -- ห่างแกนบั้งไฟ
+			TieRingDiameter = 2.6,
+			TieRingThickness = 0.2,
+			TieRingColor = Color3.fromRGB(205, 45, 40),
+			TieKnotHeight = 3.2, -- ปมเชือกสูงจากผิวแท่น
+			TieKnotSize = 0.8,
+			TieKnotColor = Color3.fromRGB(235, 190, 60),
+			-- ป้ายลอยเหนือบั้งไฟ
+			LabelText = "บั้งไฟ",
+			LabelSize = UDim2.fromOffset(110, 36),
+			LabelAbove = 4,
+			LabelMaxDistance = 300,
+		},
 	},
 
 	Rewards = {
 		MissionComplete = 200, -- TODO(ยังไม่ระบุ): เงินก้อนใหญ่เมื่อภารกิจสำเร็จ
 		MissingItemsMultiplier = 0.5, -- TODO(ยังไม่ระบุ): หนีโดยไม่มีถุงเงิน/ขนม รางวัลคูณเท่านี้
+		-- false = ขาดถุงเงิน "หรือ" ขนมอย่างใดอย่างหนึ่ง (หรือทั้งคู่) คูณ MissingItemsMultiplier ครั้งเดียว (×0.5)
+		-- true = ขาดทีละอย่างคูณซ้อนกัน (ขาดทั้งสอง = ×0.25)
+		StackMissingItemPenalty = false,
 	},
 
 	Data = {
 		StoreName = "PlayerData_v1",
+		StudioStoreSuffix = "_studio", -- ใน Studio ใช้ที่เก็บ "PlayerData_v1_studio" แยกจากเกมจริง
 		KeyPrefix = "u_",
 		CurrentVersion = 1,
 		AutosaveSeconds = 120,
@@ -674,7 +774,8 @@ local Config = {
 
 	-- ธงดีบัก (ชั่วคราว) — ปิดให้เป็น false ก่อน Publish
 	Debug = {
-		BroomSwing = true, -- พิมพ์ลง Output ตอนฟาดไม้กวด (ฝั่ง client และ server)
+		AntiCheat = false, -- พิมพ์เตือนลง Output เมื่อ AntiTeleport ดึงผู้เล่นกลับ/Combat ปฏิเสธเพราะหัวห่างตัว
+		BroomSwing = false, -- พิมพ์ลง Output ตอนฟาดไม้กวด (ฝั่ง client และ server)
 	},
 }
 

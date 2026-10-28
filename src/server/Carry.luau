@@ -45,6 +45,15 @@ local canInteract: (Player) -> boolean = function(_player: Player): boolean
 	return false
 end
 
+-- Mission ตั้งให้: ผู้เล่นคนนี้ถูกตรึงอยู่กับบั้งไฟ (มัดตัวแล้ว) → หยิบ/วางของไม่ได้ ของที่ถืออยู่ต้องติดตัวไปกับบั้งไฟ
+local isLocked: (Player) -> boolean = function(_player: Player): boolean
+	return false
+end
+
+function Carry.setLockGuard(guard: (Player) -> boolean)
+	isLocked = guard
+end
+
 -- ===== ตัวช่วย =====
 
 local function rootOf(player: Player): BasePart?
@@ -362,7 +371,7 @@ local function onPickUp(player: Player, itemName: any)
 	if type(itemName) ~= "string" or CarryCfg.Items[itemName] == nil then
 		return
 	end
-	if not canInteract(player) or PlayerHealth.getState(player) ~= "Alive" then
+	if not canInteract(player) or PlayerHealth.getState(player) ~= "Alive" or isLocked(player) then
 		return
 	end
 	if heldBy[player] ~= nil then
@@ -393,6 +402,9 @@ local function onDrop(player: Player)
 	end
 	if PlayerHealth.getState(player) == "Dead" then
 		return -- ตายแล้ว ของหล่นไปแล้วจากตัวเฝ้า
+	end
+	if isLocked(player) then
+		return -- มัดตัวบนบั้งไฟแล้ว: ของที่ถืออยู่ต้องติดไปกับบั้งไฟ
 	end
 	local root = rootOf(player)
 	if root == nil then
@@ -448,6 +460,15 @@ end
 function Carry.restHeight(kind: string): number
 	local def = CarryCfg.Items[kind]
 	return if def ~= nil then def.restHeight else 1
+end
+
+-- คนที่ถือของชนิดนี้อยู่ (nil = ไม่มีของนี้ในภารกิจ หรืออยู่บนพื้น)
+function Carry.getHolder(kind: string): Player?
+	local item = itemsByKind[kind]
+	if item == nil then
+		return nil
+	end
+	return item.holder
 end
 
 -- ชนิดของที่ผู้เล่นถืออยู่ (nil = ไม่ได้ถือ)

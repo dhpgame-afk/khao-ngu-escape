@@ -1,8 +1,8 @@
 --!strict
 -- Mission: ขั้นตอนภารกิจฝั่งเซิร์ฟเวอร์ — ห้องรอ → ยิงหนังสติ๊ก → อยู่ในภารกิจ
 -- - เซิร์ฟเวอร์ตัดสินทุกอย่าง: ใครเป็นหัวห้อง ใครพร้อม จุดลงใช้ได้ไหม · client ส่งได้แค่คำขอ
--- - ช่วงภารกิจ (Phase): Lobby → Launching → InMission → (ชุดถัดไป) Rocket → Results
---   Rocket / Results ยังไม่ทำ แค่เผื่อชื่อไว้ให้ client และโค้ดชุดต่อไป
+-- - ช่วงภารกิจ (Phase): Lobby → Launching → InMission → Rocket (จุดชนวนแล้ว นับถอยหลัง 60 วิ · ลิงยังบุก · มัดตัว) → Results → Lobby
+--   ตอนนับครบ: คิดรางวัล (Settlement) → ยิงบั้งไฟขึ้นฟ้า (Rocket.launch · ยังเป็นช่วง Rocket แต่ rocketLaunching = true) → Results
 -- - ผู้เล่นที่เข้าเกมกลางภารกิจ "รอในห้องรอ" จนภารกิจจบ
 
 local Players = game:GetService("Players")
@@ -20,10 +20,14 @@ local Carry = require(script.Parent.Carry)
 local Monk = require(script.Parent.Monk)
 local Flight = require(script.Parent.Flight)
 local Rescue = require(script.Parent.Rescue)
+local Rocket = require(script.Parent.Rocket)
+local Settlement = require(script.Parent.Settlement)
+local AntiTeleport = require(script.Parent.AntiTeleport)
 
 local MissionCfg = Config.Mission
 local LaunchCfg = Config.Launch
 local MonkCfg = Config.Monk
+local RocketCfg = Config.Rocket
 
 export type Phase = "Lobby" | "Launching" | "InMission" | "Rocket" | "Results"
 
@@ -57,6 +61,15 @@ local stateEvent: RemoteEvent? = nil
 local toastEvent: RemoteEvent? = nil -- server → ผู้ร่วมภารกิจ: ข้อความแจ้งกลางจอ
 local offered = false -- ถวายอาหารพระแล้วหรือยัง (ชุดบั้งไฟใช้ Mission.hasOffered() ดูว่าบั้งไฟพร้อมไหม)
 local callsMade: { [Player]: number } = {} -- สถิติรอบภารกิจนี้: โทรเรียกเพื่อนสำเร็จกี่ครั้ง (หน้าสรุปผลใช้ผ่าน Mission.getCallsMade) · เริ่มใหม่ตอนยิงหนังสติ๊ก
+
+-- ===== สถานะช่วงบั้งไฟ =====
+local rocketRunId = 0 -- เพิ่มทุกครั้งที่จุดชนวน/จบภารกิจ · เธรดและตัวเฝ้าเก่าที่ถือค่าเก่าต้องหยุดทำงาน
+local rocketEndsClock = 0 -- os.clock ที่นับถอยหลังครบ
+local rocketLaunching = false -- นับครบแล้ว: ล็อกรายชื่อคนมัดตัว คิดรางวัลแล้ว กำลังยิงขึ้นฟ้า
+local nextRaidClock = 0 -- os.clock ที่จะเรียกลิงบุกรอบถัดไป
+local rocketBoardKey = "" -- สรุปสถานะบนบั้งไฟล่าสุดที่ส่งให้ client (ส่งใหม่เมื่อเปลี่ยน)
+local resultsPayload: { [string]: any }? = nil -- ข้อมูลหน้าสรุปผล (มีเฉพาะช่วง Results)
+local resultsEndsClock = 0
 
 local phaseChangedEvent = Instance.new("BindableEvent")
 -- สัญญาณฝั่งเซิร์ฟเวอร์: (newPhase: Phase, oldPhase: Phase) — client ได้ phase ผ่าน RemoteEvent "MissionState"
@@ -225,6 +238,38 @@ local function serverTimeOf(clockValue: number): number
 	return Workspace:GetServerTimeNow() + (clockValue - os.clock())
 end
 
+-- ถุงเงิน/ขนมอยู่กับคนที่มัดตัวบนบั้งไฟไหม (นับเป็น "ขึ้นบั้งไฟ")
+local function itemOnBoard(kind: string): boolean
+	local holder = Carry.getHolder(kind)
+	return holder ~= nil and Rocket.isTied(holder)
+end
+
+-- สถานะบนบั้งไฟช่วงนับถอยหลัง (nil นอกช่วง Rocket) — ไม่มีข้อมูลลับ
+local function buildRocketInfo(forPlayer: Player): { [string]: any }?
+	if phase ~= "Rocket" then
+		return nil
+	end
+	local tiedList = {}
+	local total = 0
+	for player in participants do
+		total += 1
+		if Rocket.isTied(player) then
+			table.insert(tiedList, { userId = player.UserId, name = player.DisplayName })
+		end
+	end
+	return {
+		endsAt = serverTimeOf(rocketEndsClock),
+		tiedCount = #tiedList,
+		total = total,
+		tied = tiedList,
+		mine = Rocket.isTied(forPlayer),
+		freeSpots = Rocket.freeSpotCount(),
+		moneyBag = itemOnBoard("MoneyBag"),
+		snackPack = itemOnBoard("SnackPack"),
+		launching = rocketLaunching,
+	}
+end
+
 -- สถานะที่ส่งให้ผู้เล่นแต่ละคน (ไม่มีข้อมูลลับ: เงิน/ขนมส่งผ่าน DataChanged เท่านั้น)
 local function buildSnapshot(forPlayer: Player): { [string]: any }
 	local eligible = eligibleMembers()
@@ -252,6 +297,8 @@ local function buildSnapshot(forPlayer: Player): { [string]: any }
 		countdownEndsAt = if endsClock ~= nil then serverTimeOf(endsClock) else 0,
 		markers = markerList,
 		offered = offered, -- ถวายอาหารพระแล้ว (client ใช้เปลี่ยนข้อความเป้าหมาย)
+		rocket = buildRocketInfo(forPlayer), -- ช่วง Rocket: นับถอยหลัง/ใครมัดตัวแล้ว/ถุงเงิน-ขนมขึ้นบั้งไฟไหม
+		results = resultsPayload, -- ช่วง Results: หน้าสรุปผล
 	}
 end
 
@@ -283,6 +330,37 @@ end
 -- ประกาศไว้ก่อน (นิยามจริงอยู่ส่วน "พร้อม / นับถอยหลัง" ด้านล่าง) เพราะ onCharacterAdded ต้องเรียก
 local evaluateCountdown: () -> ()
 
+-- ===== ถามสถานะภารกิจ (ประกาศไว้ก่อนส่วนบั้งไฟ/ตัวจัดการคำขอที่เรียกใช้) =====
+
+-- ผู้เล่นคนนี้อยู่ในภารกิจ (ช่วง InMission) ไหม — ใช้ตัดสินว่าถือของ/กินขนมได้ไหม (Carry / Snacks)
+-- จุดปลอดภัยให้ของที่ตกโลก/หายไปกลับมา: ถวายแล้ว = ข้างพระ (ถุงเงิน/ขนม) · ยังไม่ถวาย = จุดลง (ตะกร้า)
+function Mission.getSafeSpot(): Vector3?
+	if offered then
+		local monkPosition = Monk.positionOf()
+		if monkPosition ~= nil then
+			return monkPosition
+		end
+	end
+	return missionLanding
+end
+
+-- ผู้ร่วมภารกิจที่อยู่ในช่วงเล่นจริงไหม (AntiTeleport ตรวจตำแหน่งเฉพาะคนกลุ่มนี้)
+function Mission.isInPlay(player: Player): boolean
+	return participants[player] == true and (phase == "InMission" or phase == "Rocket" or phase == "Results")
+end
+
+function Mission.canInteract(player: Player): boolean
+	-- คนที่กำลังกลับเข้าแมพหลังตาย (รอ/เล็งหนังสติ๊ก/บิน) หยิบของ กินขนม ถวายอาหารไม่ได้
+	-- ช่วงบั้งไฟ (Rocket) ก็ใช้ได้จนกว่าจะนับครบ แล้วยิงขึ้นฟ้า (rocketLaunching) เป็นต้นไปล็อกทุกอย่าง
+	local inPlay = phase == "InMission" or (phase == "Rocket" and not rocketLaunching)
+	return inPlay and participants[player] == true and not Rescue.isBusy(player)
+end
+
+-- จำนวนครั้งที่ผู้เล่นโทรเรียกเพื่อนกลับเข้าแมพสำเร็จในภารกิจนี้ (หน้าสรุปผลใช้) — เริ่มนับใหม่ตอนยิงหนังสติ๊กเริ่มภารกิจ
+function Mission.getCallsMade(player: Player): number
+	return callsMade[player] or 0
+end
+
 -- ===== ย้ายผู้เล่น =====
 local function teleportCharacter(player: Player, position: Vector3)
 	local character = player.Character
@@ -292,6 +370,7 @@ local function teleportCharacter(player: Player, position: Vector3)
 	end
 	root.AssemblyLinearVelocity = Vector3.zero
 	character:PivotTo(CFrame.new(position))
+	AntiTeleport.reset(player) -- ย้ายโดยเซิร์ฟเวอร์ ไม่ใช่เทเลพอร์ตโกง
 end
 
 local function teleportToLobby(player: Player)
@@ -312,7 +391,7 @@ local function respawnCharacter(player: Player)
 	end)
 end
 
--- ตัวละครเกิดใหม่: ผู้ร่วมภารกิจในช่วง InMission → Rescue ดูแลเอง (ตรึง วางตำแหน่ง บินกลับเข้าแมพ) · นอกนั้นไปห้องรอ
+-- ตัวละครเกิดใหม่: ผู้ร่วมภารกิจในช่วง InMission / Rocket → Rescue ดูแลเอง (ตรึง วางตำแหน่ง บินกลับเข้าแมพ) · นอกนั้นไปห้องรอ
 local function onCharacterAdded(player: Player, character: Model)
 	local root = character:WaitForChild("HumanoidRootPart", 10)
 	if root == nil or not root:IsA("BasePart") or character.Parent == nil then
@@ -322,7 +401,7 @@ local function onCharacterAdded(player: Player, character: Model)
 		end
 		return
 	end
-	if participants[player] and phase == "InMission" then
+	if participants[player] and (phase == "InMission" or phase == "Rocket") then
 		return
 	end
 	teleportToLobby(player)
@@ -336,12 +415,26 @@ end
 
 -- ===== จบภารกิจ =====
 
--- พาทุกคนกลับห้องรอและรีเซ็ตทุกอย่าง
--- TODO(ชุดบั้งไฟ): ให้ระบบบั้งไฟ/สรุปผลเรียกตอนจบภารกิจ (ตอนนี้เรียกแค่เมื่อผู้เล่นในภารกิจออกหมด)
+-- พาทุกคนกลับห้องรอและรีเซ็ตทุกอย่าง (เรียกหลังหน้าสรุปผล · ผู้เล่นในภารกิจออกหมด · ตัวเฝ้าบังคับจบ · ยิงหนังสติ๊กพัง)
 function Mission.endMission()
 	launchRunId += 1 -- หยุดลูปบินที่ค้างอยู่
-	cancelCountdown()
-	Rescue.cleanupAll() -- ยกเลิกสายโทร ปลดตรึงคนที่กำลังบินกลับ/เล็งหนังสติ๊ก และปิดหน้าจอของ client (ต้องก่อนล้าง participants)
+	rocketRunId += 1 -- หยุดเธรดนับถอยหลัง/ยิงบั้งไฟ/สรุปผลที่ค้างอยู่ และตัวเฝ้าของมัน
+	rocketLaunching = false
+	rocketBoardKey = ""
+	resultsPayload = nil
+
+	-- ทุกขั้นครอบ pcall แยก: ขั้นใดพัง ขั้นถัดไปต้องทำต่อ (โดยเฉพาะ setPhase("Lobby") + เกิดใหม่ ห้ามถูกข้าม ไม่งั้นผู้เล่นค้างในภารกิจ)
+	local function step(label: string, fn: () -> ())
+		local ok, err = pcall(fn)
+		if not ok then
+			warn("[Mission] endMission ขั้น '" .. label .. "' ล้มเหลว:", err)
+		end
+	end
+
+	step("cancelCountdown", cancelCountdown)
+	step("Rescue.cleanupAll", function()
+		Rescue.cleanupAll() -- ยกเลิกสายโทร ปลดตรึงคนที่กำลังบินกลับ/เล็งหนังสติ๊ก และปิดหน้าจอของ client (ต้องก่อนล้าง participants)
+	end)
 
 	local returning: { Player } = {}
 	for player in participants do
@@ -351,24 +444,34 @@ function Mission.endMission()
 	readySet = {}
 	missionLanding = nil
 	offered = false
-	landingX, landingZ = defaultLanding()
+	step("defaultLanding", function()
+		landingX, landingZ = defaultLanding()
+	end)
 	landingIsDefault = true
-	clearMissionObjects() -- ตะกร้าและของภารกิจ · คนถือของปล่อยของ
-
-	Monkeys.resetAll()
+	step("Rocket.reset", Rocket.reset) -- ปลดทุกคนที่มัดตัวไว้ (ปลดตรึง) ปิดควัน วางบั้งไฟกลับฐาน
+	step("clearMissionObjects", clearMissionObjects) -- ตะกร้าและของภารกิจ · คนถือของปล่อยของ
+	step("Monkeys.resetAll", function()
+		Monkeys.resetAll() -- ล้างลิงทั้งหมด รวมลิงบุกช่วงบั้งไฟ
+		Monkeys.resetMissionStats()
+	end)
 
 	-- เปลี่ยนเป็น Lobby ก่อนเกิดใหม่ เพื่อให้ onCharacterAdded ส่งทุกคนเข้าห้องรอ
-	setPhase("Lobby")
+	step("setPhase", function()
+		setPhase("Lobby")
+	end)
+	phase = "Lobby" -- ถ้า setPhase พังกลางทาง (เช่น broadcast) ให้แน่ใจว่าช่วงเปลี่ยนแล้วจริง
 	for _, player in returning do
-		Combat.setLocked(player, true)
-		local root = rootOf(player)
-		if root ~= nil then
-			root.Anchored = false -- เผื่อจบกลางอากาศ
-		end
-		returningSet[player] = true
-		respawnCharacter(player) -- ตัวละครใหม่ = เลือด/สถานะ/แม็กสดใหม่
+		step("return " .. player.Name, function()
+			Combat.setLocked(player, true)
+			local root = rootOf(player)
+			if root ~= nil then
+				root.Anchored = false -- เผื่อจบกลางอากาศ
+			end
+			returningSet[player] = true
+			respawnCharacter(player) -- ตัวละครใหม่ = เลือด/สถานะ/แม็กสดใหม่
+		end)
 	end
-	broadcast()
+	step("broadcast", broadcast)
 end
 
 -- ===== ยิงหนังสติ๊ก =====
@@ -512,6 +615,7 @@ local function startLaunch()
 	cancelCountdown()
 	offered = false
 	callsMade = {}
+	Monkeys.resetMissionStats() -- นับฆ่าลิง/เงินจากฆ่าลิงรอบภารกิจนี้ใหม่ (หน้าสรุปผล)
 	participants = {}
 	for _, player in passengers do
 		participants[player] = true
@@ -673,8 +777,7 @@ local function onOfferFood(player: Player)
 	Carry.spawnItemOnGround("MoneyBag", monkPosition + MonkCfg.MoneyBagOffset)
 	Carry.spawnItemOnGround("SnackPack", monkPosition + MonkCfg.SnackPackOffset, Config.Snacks.PerMission)
 	Carry.destroyItem("FoodBasket")
-	offered = true
-	-- TODO(ชุดบั้งไฟ): ให้ระบบบั้งไฟเปิดใช้ได้เมื่อ Mission.hasOffered() เป็น true
+	offered = true -- บั้งไฟพร้อมจุดชนวนได้แล้ว (onRocketIgnite ตรวจธงนี้)
 	sendToast(
 		"พระให้ถุงเงิน + ขนม "
 			.. Config.Snacks.PerMission
@@ -682,6 +785,245 @@ local function onOfferFood(player: Player)
 		MonkCfg.ToastSeconds
 	)
 	broadcast()
+end
+
+-- ===== บั้งไฟ: จุดชนวน → นับถอยหลัง → มัดตัว → ยิงขึ้นฟ้า → สรุปผล =====
+-- client ส่งแค่เจตนา (RocketIgnite() / RocketTie() ไม่มีค่าแนบ) · เซิร์ฟเวอร์ตรวจช่วง สถานะ ระยะ (คิดจากตำแหน่งตัวละครฝั่งเซิร์ฟเวอร์) ความถี่
+
+local function rocketStillValid(runId: number): boolean
+	return runId == rocketRunId and phase == "Rocket"
+end
+
+-- การมัดตัวมีผลเฉพาะคนที่ยังปกติ (Alive) และเป็นตัวละครตัวเดิม — ตายแล้วหลุดจากจุดมัดทันที
+local function isAliveForTie(player: Player): boolean
+	return PlayerHealth.getState(player) == "Alive"
+end
+
+-- มีบั้งไฟพร้อมใช้ไหม · ไม่มี → ลองสร้าง/หาใหม่ 1 ครั้ง (เผื่อเจ้าของลบหรือสร้างตอนเริ่มพลาด)
+local function rocketAvailable(): boolean
+	if Rocket.isReady() then
+		return true
+	end
+	local ok, err = pcall(Rocket.ensure)
+	if not ok then
+		warn("[Mission] Rocket.ensure ซ้ำล้มเหลว:", err)
+	end
+	return Rocket.isReady()
+end
+
+-- หาบั้งไฟไม่เจอจริง ๆ: บอกทีมแล้วจบภารกิจ (ไม่ปล่อยให้ค้างกดจุดชนวนไม่ได้)
+local function abortMissingRocket()
+	warn(
+		"[Mission] ไม่พบบั้งไฟ (Workspace.MapObjects."
+			.. RocketCfg.Build.ModelName
+			.. ") — จบภารกิจ"
+	)
+	sendToast("หาบั้งไฟไม่เจอ — จบภารกิจ", RocketCfg.ToastSeconds)
+	Mission.endMission()
+end
+
+-- สถานะบนบั้งไฟเปลี่ยน (คนมัดตัวเพิ่ม/ถุงเงินหรือขนมเปลี่ยนมือ/ที่ว่าง) → ส่งให้ client ใหม่
+local function refreshRocketBoard()
+	local key = table.concat({
+		tostring(Rocket.tiedCount()),
+		tostring(itemOnBoard("MoneyBag")),
+		tostring(itemOnBoard("SnackPack")),
+		tostring(Rocket.freeSpotCount()),
+	}, "|")
+	if key ~= rocketBoardKey then
+		rocketBoardKey = key
+		broadcast()
+	end
+end
+
+-- สร้างข้อมูลหน้าสรุปผลที่ส่งให้ client จากผลของ Settlement
+local function buildResultsPayload(result: Settlement.Result): { [string]: any }
+	return {
+		success = result.success,
+		title = result.title,
+		subtitle = result.subtitle,
+		endsAt = serverTimeOf(resultsEndsClock),
+		rows = result.rows,
+	}
+end
+
+-- นับครบ: ล็อกรายชื่อ → คิดรางวัล/จ่ายเงิน (ครั้งเดียว) → ยิงบั้งไฟ → หน้าสรุปผล → กลับห้องรอ
+local function finishRocket(runId: number)
+	if not rocketAvailable() then
+		abortMissingRocket()
+		return
+	end
+	rocketLaunching = true -- ห้ามมัดตัวเพิ่ม · Rescue หยุดทำงาน (getPhase คืน "RocketLaunch")
+	-- ผลถูกล็อกแล้ว: ทุกคนยิงไม่ได้ (กันฆ่าลิงเพิ่มเงินหลังคิดรางวัลไปแล้ว)
+	for player in participants do
+		Combat.setLocked(player, true)
+	end
+	Rocket.validate(isAliveForTie) -- ตัดการมัดที่ตัวละครตาย/เปลี่ยนแล้วออกก่อนคิดรางวัล
+	local tiedSet: { [Player]: boolean } = {}
+	local participantList: { Player } = {}
+	for player in participants do
+		table.insert(participantList, player)
+		if Rocket.isTied(player) then
+			tiedSet[player] = true
+		end
+	end
+	local snackHolder = Carry.getHolder("SnackPack")
+	resultsEndsClock = os.clock() + RocketCfg.LaunchSeconds + RocketCfg.ResultsSeconds
+	local result = Settlement.run({
+		participants = participantList,
+		tied = tiedSet,
+		moneyBagHolder = Carry.getHolder("MoneyBag"),
+		snackHolder = snackHolder,
+		snackCount = if snackHolder ~= nil then Carry.getHeldSnackCount(snackHolder) else 0,
+		callsMade = Mission.getCallsMade,
+	})
+	resultsPayload = buildResultsPayload(result)
+	broadcast() -- ธง launching → client ขึ้น "บั้งไฟกำลังขึ้น!"
+
+	local completed = Rocket.launch(RocketCfg.LaunchSeconds, RocketCfg.LaunchRiseStuds, function()
+		return rocketStillValid(runId)
+	end)
+	if not completed then
+		return -- ภารกิจถูกจบจากที่อื่นระหว่างยิง (endMission ล้างให้แล้ว)
+	end
+
+	resultsEndsClock = os.clock() + RocketCfg.ResultsSeconds
+	resultsPayload = buildResultsPayload(result)
+	setPhase("Results")
+	task.wait(RocketCfg.ResultsSeconds)
+	if runId == rocketRunId and phase == "Results" then
+		Mission.endMission()
+	end
+end
+
+local tieWindowAnnounced = false -- แจ้งทีมแล้วหรือยังว่าถึงช่วงมัดตัวได้
+
+local function runRocket(runId: number)
+	while rocketStillValid(runId) and os.clock() < rocketEndsClock do
+		task.wait(RocketCfg.TickSeconds)
+		if not rocketStillValid(runId) then
+			return
+		end
+		local now = os.clock()
+		Rocket.validate(isAliveForTie) -- คนที่ตาย/เกิดใหม่หลุดจากจุดมัด ที่ว่างคืนให้คนอื่น
+		if not tieWindowAnnounced and rocketEndsClock - now <= RocketCfg.TieWindowSeconds then
+			tieWindowAnnounced = true
+			sendToast(
+				"มัดตัวขึ้นบั้งไฟได้แล้ว! รีบเลย",
+				RocketCfg.ToastSeconds
+			)
+		end
+		if now >= nextRaidClock then
+			-- ลิงบุกระหว่างนับถอยหลัง: เรียกจากรังที่ใกล้ฐานบั้งไฟที่สุด (Monkeys เคารพเพดาน MaxTotal)
+			nextRaidClock = now + RocketCfg.RaidIntervalSeconds
+			local padPosition = Rocket.getPosition()
+			if padPosition ~= nil then
+				Monkeys.spawnRaid(padPosition, RocketCfg.RaidCount)
+			end
+		end
+		refreshRocketBoard()
+	end
+	if rocketStillValid(runId) then
+		finishRocket(runId)
+	end
+end
+
+local function startRocketCountdown()
+	rocketRunId += 1
+	local runId = rocketRunId
+	rocketLaunching = false
+	rocketEndsClock = os.clock() + RocketCfg.CountdownSeconds
+	nextRaidClock = os.clock() + RocketCfg.RaidIntervalSeconds
+	rocketBoardKey = ""
+	resultsPayload = nil
+	tieWindowAnnounced = false
+	Rocket.setLit(true) -- ประกายที่สายชนวน
+	setPhase("Rocket")
+	sendToast(
+		"จุดชนวนบั้งไฟแล้ว! ยื้อไว้ แล้วมัดตัวขึ้นบั้งไฟใน "
+			.. RocketCfg.TieWindowSeconds
+			.. " วิสุดท้าย — ลิงกำลังบุก!",
+		RocketCfg.ToastSeconds
+	)
+
+	task.spawn(function()
+		-- ครอบ xpcall: ถ้ารอบนี้พัง ต้องไม่ปล่อยให้ผู้เล่นค้างที่ช่วงบั้งไฟ → จบภารกิจพากลับห้องรอ
+		local ok, err = xpcall(runRocket, debug.traceback, runId)
+		if not ok then
+			warn("[Mission] รอบบั้งไฟพัง:", err)
+			if runId == rocketRunId and phase ~= "Lobby" then
+				Mission.endMission()
+			end
+		end
+	end)
+	-- ตัวเฝ้า: ไม่ว่าเกิดอะไร สรุปผลต้องจบและกลับห้องรอเสมอ
+	local watchdogSeconds = RocketCfg.CountdownSeconds
+		+ RocketCfg.LaunchSeconds
+		+ RocketCfg.ResultsSeconds
+		+ RocketCfg.WatchdogExtraSeconds
+	task.delay(watchdogSeconds, function()
+		if runId == rocketRunId and phase ~= "Lobby" then
+			warn(
+				"[Mission] ตัวเฝ้าบั้งไฟ: ค้างเกินเวลา — บังคับจบภารกิจ"
+			)
+			Mission.endMission()
+		end
+	end)
+end
+
+-- จุดชนวนบั้งไฟ: ต้องอยู่ช่วง InMission · ถวายอาหารแล้ว · ผู้ร่วมภารกิจที่ปกติ (ไม่ล้ม/ตาย/กำลังกลับเข้าแมพ) · ยืนใกล้บั้งไฟ
+local function onRocketIgnite(player: Player)
+	if not RateLimit.allow(player, "RocketIgnite", RocketCfg.IgniteMinIntervalSeconds) then
+		return
+	end
+	if phase ~= "InMission" or not offered or not Mission.canInteract(player) then
+		return
+	end
+	if PlayerHealth.getState(player) ~= "Alive" then
+		return
+	end
+	local root = rootOf(player)
+	if root == nil then
+		return
+	end
+	local range = RocketCfg.IgniteRange + RocketCfg.RangeTolerance
+	if not rocketAvailable() then
+		-- ไม่มีบั้งไฟจริง: ถ้าผู้เล่นยืนที่ฐาน (จุด RocketPad) → แจ้งทีมแล้วจบภารกิจ ไม่ให้ค้างกดจุดชนวนไม่ได้
+		local pad = markerPositions["RocketPad"]
+		if pad ~= nil and math.sqrt((root.Position.X - pad.X) ^ 2 + (root.Position.Z - pad.Z) ^ 2) <= range then
+			abortMissingRocket()
+		end
+		return
+	end
+	if not Rocket.isNear(root.Position, range) then
+		return
+	end
+	startRocketCountdown()
+end
+
+-- มัดตัวขึ้นบั้งไฟ: ต้องอยู่ช่วง Rocket ก่อนนับครบ · ผู้ร่วมภารกิจที่ปกติ · ยังไม่ได้มัด · ยืนใกล้บั้งไฟ · มีจุดมัดว่าง
+local function onRocketTie(player: Player)
+	if not RateLimit.allow(player, "RocketTie", RocketCfg.TieMinIntervalSeconds) then
+		return
+	end
+	if phase ~= "Rocket" or rocketLaunching or os.clock() >= rocketEndsClock then
+		return
+	end
+	-- ต้องยื้อก่อน: มัดตัวได้เฉพาะ TieWindowSeconds วิสุดท้ายของการนับถอยหลัง
+	if rocketEndsClock - os.clock() > RocketCfg.TieWindowSeconds then
+		return
+	end
+	if not Mission.canInteract(player) or PlayerHealth.getState(player) ~= "Alive" or Rocket.isTied(player) then
+		return
+	end
+	local root = rootOf(player)
+	if root == nil or not Rocket.isNear(root.Position, RocketCfg.TieRange + RocketCfg.RangeTolerance) then
+		return
+	end
+	if Rocket.tie(player) then
+		refreshRocketBoard()
+		broadcast()
+	end
 end
 
 -- ===== ผู้เล่นเข้า/ออก =====
@@ -721,6 +1063,7 @@ local function onPlayerRemoving(player: Player)
 	participants[player] = nil
 	returningSet[player] = nil
 	Rescue.onPlayerRemoving(player) -- วางสายที่เกี่ยวข้อง · เอาออกจากรายการคนตาย/กำลังบิน
+	Rocket.untie(player, false) -- คนมัดตัวออกเกมกลางคัน: คืนจุดมัด (ของที่ถือหล่นตรงนั้น → ไม่นับว่าขึ้นบั้งไฟ)
 	cancelCountdown() -- ใครออก = ยกเลิกการนับถอยหลัง (ถ้าที่เหลือพร้อมครบ จะเริ่มนับใหม่)
 
 	if phase ~= "Lobby" and next(participants) == nil then
@@ -754,6 +1097,35 @@ local function startBoundsLoop()
 	end)
 end
 
+-- ผู้ร่วมภารกิจตกโลก (ต่ำกว่า Config.Map.VoidY) → พากลับจุดปลอดภัย (ข้างพระถ้าถวายแล้ว · ไม่งั้นจุดลง)
+local function startVoidLoop()
+	task.spawn(function()
+		while true do
+			task.wait(Config.Map.VoidCheckSeconds)
+			-- ครอบด้วย xpcall: ถ้ารอบใดพัง ลูปต้องไม่ตาย
+			local ok, err = xpcall(function()
+				if phase == "Lobby" or phase == "Launching" then
+					return
+				end
+				local safe = Mission.getSafeSpot()
+				if safe == nil then
+					return
+				end
+				for player in participants do
+					local root = rootOf(player)
+					-- ตัวที่ถูกตรึง (บิน/เล็งหนังสติ๊ก/มัดตัวบนบั้งไฟ) ไม่นับ
+					if root ~= nil and not root.Anchored and root.Position.Y < Config.Map.VoidY then
+						teleportCharacter(player, safe + Vector3.new(0, LaunchCfg.LandingRootHeight + 2, 0))
+					end
+				end
+			end, debug.traceback)
+			if not ok then
+				warn("[Mission] void loop error:", err)
+			end
+		end
+	end)
+end
+
 -- ===== API ให้ระบบอื่น =====
 
 function Mission.getPhase(): Phase
@@ -763,28 +1135,6 @@ end
 -- ถวายอาหารพระแล้วหรือยัง (true = บั้งไฟพร้อม) — ชุดบั้งไฟเรียก
 function Mission.hasOffered(): boolean
 	return offered
-end
-
--- ผู้เล่นคนนี้อยู่ในภารกิจ (ช่วง InMission) ไหม — ใช้ตัดสินว่าถือของ/กินขนมได้ไหม (Carry / Snacks)
--- จุดปลอดภัยให้ของที่ตกโลก/หายไปกลับมา: ถวายแล้ว = ข้างพระ (ถุงเงิน/ขนม) · ยังไม่ถวาย = จุดลง (ตะกร้า)
-function Mission.getSafeSpot(): Vector3?
-	if offered then
-		local monkPosition = Monk.positionOf()
-		if monkPosition ~= nil then
-			return monkPosition
-		end
-	end
-	return missionLanding
-end
-
-function Mission.canInteract(player: Player): boolean
-	-- คนที่กำลังกลับเข้าแมพหลังตาย (รอ/เล็งหนังสติ๊ก/บิน) หยิบของ กินขนม ถวายอาหารไม่ได้
-	return phase == "InMission" and participants[player] == true and not Rescue.isBusy(player)
-end
-
--- จำนวนครั้งที่ผู้เล่นโทรเรียกเพื่อนกลับเข้าแมพสำเร็จในภารกิจนี้ (หน้าสรุปผลใช้) — เริ่มนับใหม่ตอนยิงหนังสติ๊กเริ่มภารกิจ
-function Mission.getCallsMade(player: Player): number
-	return callsMade[player] or 0
 end
 
 -- ใช้ร้านค้า/แลกขนมได้ไหม: ต้องอยู่ช่วงห้องรอ และผู้เล่นคนนี้อยู่ในห้องรอ
@@ -812,11 +1162,26 @@ function Mission.init()
 	Remotes.remoteEvent("MissionSetReady").OnServerEvent:Connect(onSetReady) -- (boolean)
 	Remotes.remoteEvent("MissionSetLanding").OnServerEvent:Connect(onSetLanding) -- (x: number, z: number)
 	Remotes.remoteEvent("OfferFood").OnServerEvent:Connect(onOfferFood) -- ()
+	Remotes.remoteEvent("RocketIgnite").OnServerEvent:Connect(onRocketIgnite) -- () จุดชนวนบั้งไฟ
+	Remotes.remoteEvent("RocketTie").OnServerEvent:Connect(onRocketTie) -- () มัดตัวขึ้นบั้งไฟ
+
+	-- คนที่มัดตัวบนบั้งไฟแล้ว: ไม่รับดาเมจ (ไม่ล้มค้างบนบั้งไฟ) · หยิบ/วางของไม่ได้ (ของที่ถือติดไปกับบั้งไฟ)
+	-- ช่วงยิงขึ้นฟ้าและหน้าสรุปผล: ทุกคนไม่รับดาเมจ (ผลถูกล็อกแล้ว ไม่ให้ลิงมาเปลี่ยนผล/ฆ่าคนระหว่างดูสรุป)
+	PlayerHealth.addDamageGuard(function(player: Player): boolean
+		return Rocket.isTied(player) or phase == "Results" or (phase == "Rocket" and rocketLaunching)
+	end)
+	Carry.setLockGuard(Rocket.isTied)
+	Monkeys.setRaidTargetExcluded(Rocket.isTied) -- ลิงบุกไม่เลือกคนที่มัดตัวบนบั้งไฟเป็นเป้า (ตีไม่เข้าอยู่แล้ว)
+	AntiTeleport.init(Mission.isInPlay)
 	toastEvent = Remotes.remoteEvent("MissionToast") -- server → ผู้ร่วมภารกิจ: { text: string, seconds: number }
 
 	-- กลับเข้าแมพหลังตาย (เพื่อนโทรเรียก / หนังสติ๊ก 40 วิ) — ส่งฟังก์ชันของ Mission ให้ Rescue ใช้ (กัน require วนกัน)
 	Rescue.init({
 		getPhase = function(): string
+			-- ยิงบั้งไฟแล้ว: ปิดระบบกลับเข้าแมพ (ไม่ให้ใครเพิ่งลงมาท่ามกลางบั้งไฟที่กำลังลอย)
+			if phase == "Rocket" and rocketLaunching then
+				return "RocketLaunch"
+			end
 			return phase
 		end,
 		isParticipant = function(player: Player): boolean
@@ -839,6 +1204,7 @@ function Mission.init()
 		recordCall = function(player: Player)
 			callsMade[player] = (callsMade[player] or 0) + 1
 		end,
+		isHeldInPlace = Rocket.isTied,
 	})
 
 	Players.PlayerAdded:Connect(registerPlayer)
@@ -848,6 +1214,7 @@ function Mission.init()
 	end
 
 	startBoundsLoop()
+	startVoidLoop()
 
 	-- โหลดจุดสำคัญในเธรดแยก ไม่บล็อกการเริ่มระบบอื่น · เสร็จแล้วอัปเดตจุดลงเริ่มต้นและแจ้ง client
 	task.spawn(function()

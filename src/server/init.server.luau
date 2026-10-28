@@ -4,8 +4,14 @@
 -- MapSetup ต้องมาก่อนทุกอย่าง: สร้างจุดสำคัญ (MapMarkers) + กุฏิ ที่ Mission / Monkeys อ่านตอนเริ่ม
 local MapSetup = require(script.MapSetup)
 local Monk = require(script.Monk)
+local Rocket = require(script.Rocket)
 MapSetup.run()
 Monk.ensure() -- พระยืนหน้ากุฏิตั้งแต่เริ่มเซิร์ฟเวอร์ (ไม่รอยิงหนังสติ๊ก)
+-- บั้งไฟที่ฐาน RocketPad (Part ล้วน ไม่ใช้ asset) · ครอบ pcall: สร้างพลาดต้องไม่ล้มเซิร์ฟเวอร์ (ภารกิจจะจุดชนวนไม่ได้ + เตือนใน Output)
+local okRocket, errRocket = pcall(Rocket.ensure)
+if not okRocket then
+	warn("[Server] สร้างบั้งไฟไม่สำเร็จ:", errRocket)
+end
 
 local PlayerData = require(script.PlayerData)
 local Shop = require(script.Shop)

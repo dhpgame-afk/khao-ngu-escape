@@ -384,7 +384,7 @@ function NavMap.start(rescue: RescueUi.Api): Api
 	playerIcon.Visible = false
 
 	-- ===== สถานะที่ได้จากเซิร์ฟเวอร์ =====
-	local active = false -- อยู่ในภารกิจ (ช่วง InMission และเป็นผู้ร่วมภารกิจ)
+	local active = false -- อยู่ในภารกิจ (ช่วง InMission / Rocket และเป็นผู้ร่วมภารกิจ) · ถวายแล้ว = เป้าหมายคือบั้งไฟ
 	local offered = false
 	local markerPositions: { [string]: Vector2 } = {} -- ชื่อจุด → (x, z) โลก
 	local markerIcons: { [string]: Frame } = {}
@@ -687,7 +687,7 @@ function NavMap.start(rescue: RescueUi.Api): Api
 
 	return {
 		onSnapshot = function(snapshot: { [string]: any })
-			active = snapshot.phase == "InMission" and snapshot.inLobby ~= true
+			active = (snapshot.phase == "InMission" or snapshot.phase == "Rocket") and snapshot.inLobby ~= true
 			offered = snapshot.offered == true
 			local markers = snapshot.markers
 			if type(markers) == "table" then
