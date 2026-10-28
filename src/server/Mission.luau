@@ -7,7 +7,6 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -19,6 +18,8 @@ local Monkeys = require(script.Parent.Monkeys)
 local PlayerHealth = require(script.Parent.PlayerHealth)
 local Carry = require(script.Parent.Carry)
 local Monk = require(script.Parent.Monk)
+local Flight = require(script.Parent.Flight)
+local Rescue = require(script.Parent.Rescue)
 
 local MissionCfg = Config.Mission
 local LaunchCfg = Config.Launch
@@ -30,14 +31,6 @@ type MarkerInfo = { name: string, x: number, z: number }
 
 type BasketFlight = {
 	model: Model,
-	startPos: Vector3,
-	endPos: Vector3,
-}
-
-type Flight = {
-	player: Player,
-	character: Model,
-	root: BasePart,
 	startPos: Vector3,
 	endPos: Vector3,
 }
@@ -63,7 +56,7 @@ local markerList: { MarkerInfo } = {} -- ส่งให้ client วาดแ�
 local stateEvent: RemoteEvent? = nil
 local toastEvent: RemoteEvent? = nil -- server → ผู้ร่วมภารกิจ: ข้อความแจ้งกลางจอ
 local offered = false -- ถวายอาหารพระแล้วหรือยัง (ชุดบั้งไฟใช้ Mission.hasOffered() ดูว่าบั้งไฟพร้อมไหม)
-local rng = Random.new()
+local callsMade: { [Player]: number } = {} -- สถิติรอบภารกิจนี้: โทรเรียกเพื่อนสำเร็จกี่ครั้ง (หน้าสรุปผลใช้ผ่าน Mission.getCallsMade) · เริ่มใหม่ตอนยิงหนังสติ๊ก
 
 local phaseChangedEvent = Instance.new("BindableEvent")
 -- สัญญาณฝั่งเซิร์ฟเวอร์: (newPhase: Phase, oldPhase: Phase) — client ได้ phase ผ่าน RemoteEvent "MissionState"
@@ -321,8 +314,7 @@ local function respawnCharacter(player: Player)
 	end)
 end
 
--- ตัวละครเกิดใหม่: ห้องรอ (ปกติ) หรือรอบจุดลง (คนที่อยู่ในภารกิจแล้วเกิดใหม่กลางภารกิจ)
--- TODO(ชุดกลับเข้าแมพ): แทนส่วน "เกิดรอบจุดลง" ด้วยระบบเพื่อนโทรเรียก / หนังสติ๊กยิงตัวหลัง 40 วิ
+-- ตัวละครเกิดใหม่: ผู้ร่วมภารกิจในช่วง InMission → Rescue ดูแลเอง (ตรึง วางตำแหน่ง บินกลับเข้าแมพ) · นอกนั้นไปห้องรอ
 local function onCharacterAdded(player: Player, character: Model)
 	local root = character:WaitForChild("HumanoidRootPart", 10)
 	if root == nil or not root:IsA("BasePart") or character.Parent == nil then
@@ -332,19 +324,10 @@ local function onCharacterAdded(player: Player, character: Model)
 		end
 		return
 	end
-	local landing = missionLanding
-	if participants[player] and landing ~= nil then
-		local scatter = MissionCfg.RespawnScatterStuds
-		local spot = landing
-			+ Vector3.new(
-				rng:NextNumber(-scatter, scatter),
-				LaunchCfg.LandingRootHeight,
-				rng:NextNumber(-scatter, scatter)
-			)
-		teleportCharacter(player, spot)
-	else
-		teleportToLobby(player)
+	if participants[player] and phase == "InMission" then
+		return
 	end
+	teleportToLobby(player)
 	if returningSet[player] then
 		-- ตัวละครใหม่เกิดที่ห้องรอแล้ว: กลับมานับเป็นคนในห้องรอ (ยังไม่พร้อม → ถ้ากำลังนับถอยหลังอยู่ให้ยกเลิก)
 		returningSet[player] = nil
@@ -360,6 +343,7 @@ end
 function Mission.endMission()
 	launchRunId += 1 -- หยุดลูปบินที่ค้างอยู่
 	cancelCountdown()
+	Rescue.cleanupAll() -- ยกเลิกสายโทร ปลดตรึงคนที่กำลังบินกลับ/เล็งหนังสติ๊ก และปิดหน้าจอของ client (ต้องก่อนล้าง participants)
 
 	local returning: { Player } = {}
 	for player in participants do
@@ -393,12 +377,6 @@ end
 
 local function launchStillValid(runId: number): boolean
 	return runId == launchRunId and phase == "Launching"
-end
-
--- จุดบนเส้นโค้ง: เส้นตรงจากถุงถึงจุดลง + ยกขึ้นเป็นพาราโบลา (สูงสุดตรงกลางทาง)
-local function arcPosition(startPos: Vector3, endPos: Vector3, alpha: number): Vector3
-	local onLine = startPos:Lerp(endPos, alpha)
-	return onLine + Vector3.new(0, LaunchCfg.ArcPeakHeight * 4 * alpha * (1 - alpha), 0)
 end
 
 -- สร้างตะกร้าอาหารที่ถุงหนังสติ๊ก ให้บินพร้อมทีมตามโค้งเดียวกัน (เยื้องหน้าถุงไปทางจุดลง)
@@ -456,7 +434,7 @@ local function runLaunch(runId: number, passengers: { Player })
 	local facing = if toLanding.Magnitude > 0.1 then toLanding.Unit else Vector3.new(0, 0, 1)
 
 	-- 1) ย้ายทุกคนเข้าถุง ตรึงตัว (Anchored) แล้วคำนวณจุดลงของแต่ละคน
-	local flights: { Flight } = {}
+	local legs: { Flight.Leg } = {}
 	for i, player in passengers do
 		Combat.refillFirecrackers(player)
 		local character = player.Character
@@ -467,12 +445,13 @@ local function runLaunch(runId: number, passengers: { Player })
 			root.AssemblyLinearVelocity = Vector3.zero
 			root.CFrame = CFrame.lookAt(startPos, startPos + facing)
 			root.Anchored = true
-			table.insert(flights, {
+			table.insert(legs, {
 				player = player,
 				character = character,
 				root = root,
 				startPos = startPos,
 				endPos = endGround + Vector3.new(0, LaunchCfg.LandingRootHeight, 0),
+				facing = facing,
 			})
 		end
 	end
@@ -485,15 +464,10 @@ local function runLaunch(runId: number, passengers: { Player })
 
 	-- ระหว่างรอ ขอให้ client ของแต่ละคนโหลดแมพรอบจุดลงล่วงหน้า (StreamingEnabled) ทุกคนพร้อมกัน
 	-- แล้วรอจนโหลดเสร็จหรือหมดเวลา ก่อนบิน/ปล่อยตัว กันลงบนพื้นที่ยังไม่โหลด (ตกทะลุพื้น)
-	local pendingStreams = #flights
-	for _, flight in flights do
+	local pendingStreams = #legs
+	for _, leg in legs do
 		task.spawn(function()
-			local ok, err = pcall(function()
-				flight.player:RequestStreamAroundAsync(landingGround, LaunchCfg.StreamTimeoutSeconds)
-			end)
-			if not ok then
-				warn("[Mission] RequestStreamAroundAsync ล้มเหลว", flight.player.Name, err)
-			end
+			Flight.streamAround(leg.player, landingGround, LaunchCfg.StreamTimeoutSeconds)
 			pendingStreams -= 1
 		end)
 	end
@@ -512,36 +486,26 @@ local function runLaunch(runId: number, passengers: { Player })
 		return
 	end
 
-	-- 2) บินตามโค้งโดยขยับ HumanoidRootPart ที่ถูกตรึง (ไม่พึ่งฟิสิกส์ จึงไม่ติดภูมิประเทศ)
-	local elapsed = 0
-	while elapsed < LaunchCfg.FlightSeconds do
-		local dt = RunService.Heartbeat:Wait()
-		if not launchStillValid(runId) then
-			return
-		end
-		elapsed += dt
-		local alpha = math.min(elapsed / LaunchCfg.FlightSeconds, 1)
-		for _, flight in flights do
-			if flight.root.Parent ~= nil and flight.player.Character == flight.character then
-				local position = arcPosition(flight.startPos, flight.endPos, alpha)
-				flight.root.CFrame = CFrame.lookAt(position, position + facing)
-			end
-		end
+	-- 2) บินตามโค้งโดยขยับ HumanoidRootPart ที่ถูกตรึง (ไม่พึ่งฟิสิกส์ จึงไม่ติดภูมิประเทศ) · ตะกร้าบินตามโค้งเดียวกัน
+	local completed = Flight.run(legs, LaunchCfg.FlightSeconds, LaunchCfg.ArcPeakHeight, function()
+		return launchStillValid(runId)
+	end, function(alpha: number)
 		if basket.model.Parent ~= nil then
-			basket.model:PivotTo(CFrame.new(arcPosition(basket.startPos, basket.endPos, alpha)))
+			basket.model:PivotTo(
+				CFrame.new(Flight.arcPosition(basket.startPos, basket.endPos, alpha, LaunchCfg.ArcPeakHeight))
+			)
 		end
+	end)
+	if not completed then
+		return
 	end
 
 	-- 3) ลงพื้น: ตะกร้าลงข้างทีม · ปล่อยตัว (ไม่มีดาเมจตกจากที่สูง เพราะเกมไม่มีระบบเสียเลือดจากการตก)
 	if basket.model.Parent ~= nil then
 		basket.model:PivotTo(CFrame.new(basket.endPos))
 	end
-	for _, flight in flights do
-		if flight.root.Parent ~= nil and flight.player.Character == flight.character then
-			flight.root.CFrame = CFrame.lookAt(flight.endPos, flight.endPos + facing)
-			flight.root.AssemblyLinearVelocity = Vector3.zero
-			flight.root.Anchored = false
-		end
+	for _, leg in legs do
+		Flight.land(leg)
 	end
 	for _, player in passengers do
 		if participants[player] then
@@ -569,6 +533,7 @@ local function startLaunch()
 	local runId = launchRunId
 	cancelCountdown()
 	offered = false
+	callsMade = {}
 	participants = {}
 	for _, player in passengers do
 		participants[player] = true
@@ -777,6 +742,7 @@ local function onPlayerRemoving(player: Player)
 	readySet[player] = nil
 	participants[player] = nil
 	returningSet[player] = nil
+	Rescue.onPlayerRemoving(player) -- วางสายที่เกี่ยวข้อง · เอาออกจากรายการคนตาย/กำลังบิน
 	cancelCountdown() -- ใครออก = ยกเลิกการนับถอยหลัง (ถ้าที่เหลือพร้อมครบ จะเริ่มนับใหม่)
 
 	if phase ~= "Lobby" and next(participants) == nil then
@@ -792,13 +758,19 @@ local function startBoundsLoop()
 	task.spawn(function()
 		while true do
 			task.wait(Config.Lobby.BoundsCheckSeconds)
-			for _, player in Players:GetPlayers() do
-				if isLobbyMember(player) then
-					local root = rootOf(player)
-					if root ~= nil and not root.Anchored and Lobby.isOutside(root.Position) then
-						teleportToLobby(player)
+			-- ครอบด้วย xpcall: ถ้ารอบใดพัง ลูปต้องไม่ตาย (ไม่งั้นคนตกแท่นห้องรอไม่ถูกพากลับ)
+			local ok, err = xpcall(function()
+				for _, player in Players:GetPlayers() do
+					if isLobbyMember(player) then
+						local root = rootOf(player)
+						if root ~= nil and not root.Anchored and Lobby.isOutside(root.Position) then
+							teleportToLobby(player)
+						end
 					end
 				end
+			end, debug.traceback)
+			if not ok then
+				warn("[Mission] bounds loop error:", err)
 			end
 		end
 	end)
@@ -828,7 +800,13 @@ function Mission.getSafeSpot(): Vector3?
 end
 
 function Mission.canInteract(player: Player): boolean
-	return phase == "InMission" and participants[player] == true
+	-- คนที่กำลังกลับเข้าแมพหลังตาย (รอ/เล็งหนังสติ๊ก/บิน) หยิบของ กินขนม ถวายอาหารไม่ได้
+	return phase == "InMission" and participants[player] == true and not Rescue.isBusy(player)
+end
+
+-- จำนวนครั้งที่ผู้เล่นโทรเรียกเพื่อนกลับเข้าแมพสำเร็จในภารกิจนี้ (หน้าสรุปผลใช้) — เริ่มนับใหม่ตอนยิงหนังสติ๊กเริ่มภารกิจ
+function Mission.getCallsMade(player: Player): number
+	return callsMade[player] or 0
 end
 
 -- ใช้ร้านค้า/แลกขนมได้ไหม: ต้องอยู่ช่วงห้องรอ และผู้เล่นคนนี้อยู่ในห้องรอ
@@ -857,6 +835,33 @@ function Mission.init()
 	Remotes.remoteEvent("MissionSetLanding").OnServerEvent:Connect(onSetLanding) -- (x: number, z: number)
 	Remotes.remoteEvent("OfferFood").OnServerEvent:Connect(onOfferFood) -- ()
 	toastEvent = Remotes.remoteEvent("MissionToast") -- server → ผู้ร่วมภารกิจ: { text: string, seconds: number }
+
+	-- กลับเข้าแมพหลังตาย (เพื่อนโทรเรียก / หนังสติ๊ก 40 วิ) — ส่งฟังก์ชันของ Mission ให้ Rescue ใช้ (กัน require วนกัน)
+	Rescue.init({
+		getPhase = function(): string
+			return phase
+		end,
+		isParticipant = function(player: Player): boolean
+			return participants[player] == true
+		end,
+		getParticipants = function(): { Player }
+			local list: { Player } = {}
+			for player in participants do
+				table.insert(list, player)
+			end
+			return list
+		end,
+		getLanding = function(): Vector3?
+			return missionLanding
+		end,
+		getSafeSpot = Mission.getSafeSpot,
+		groundHit = groundHit,
+		groundPoint = groundPoint,
+		clampLanding = clampLanding,
+		recordCall = function(player: Player)
+			callsMade[player] = (callsMade[player] or 0) + 1
+		end,
+	})
 
 	Players.PlayerAdded:Connect(registerPlayer)
 	Players.PlayerRemoving:Connect(onPlayerRemoving)

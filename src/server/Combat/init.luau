@@ -50,6 +50,7 @@ local stateEvent: RemoteEvent? = nil
 local fxEvent: RemoteEvent? = nil
 local firecrackersLeft: { [Player]: number } = {} -- ประทัดที่เหลือต่อผู้เล่น (ต่อเซิร์ฟเวอร์ ไม่เซฟ) เกิดใหม่ไม่เติมคืน
 local weaponsLocked: { [Player]: boolean } = {} -- ล็อกอาวุธ (ตอนอยู่ห้องรอ/ถูกยิงหนังสติ๊ก) · Mission เป็นคนตั้ง
+local calling: { [Player]: boolean } = {} -- กำลังโทรเรียกเพื่อน: ยิง ขว้าง ฟาดไม่ได้ · Rescue เป็นคนตั้ง
 
 -- ===== ตัวช่วยตรวจค่าจาก client =====
 
@@ -154,6 +155,9 @@ end
 local function canAct(player: Player): Loadout?
 	if weaponsLocked[player] then
 		return nil -- ห้องรอ/กำลังบินจากหนังสติ๊ก: ยิง ขว้าง ฟาด เปลี่ยนแม็กไม่ได้
+	end
+	if calling[player] then
+		return nil -- กำลังโทรเรียกเพื่อน: ยิง ขว้าง ฟาด เปลี่ยนแม็กไม่ได้
 	end
 	local loadout = loadouts[player]
 	if loadout == nil or loadout.character ~= player.Character then
@@ -705,6 +709,16 @@ function Combat.setLocked(player: Player, locked: boolean)
 	weaponsLocked[player] = if locked then true else nil
 end
 
+-- กำลังโทรเรียกเพื่อน (Rescue เรียก): ระหว่างโทรยิง ขว้าง ฟาด เปลี่ยนแม็กไม่ได้ · ไม่ใช้ setLocked เพราะ Mission ใช้ล็อกนั้นอยู่
+function Combat.setCalling(player: Player, isCalling: boolean)
+	calling[player] = if isCalling then true else nil
+	local loadout = loadouts[player]
+	if isCalling and loadout ~= nil then
+		cancelReload(loadout)
+		pushState(player, loadout)
+	end
+end
+
 -- ส่งสถานะอาวุธ (ปืนที่ถืออยู่ ฯลฯ) ให้เจ้าตัวอีกครั้ง — ให้ client ที่เพิ่งต่อสายได้ค่าล่าสุด (Mission เรียกตอนตอบ GetMissionState)
 function Combat.resendState(player: Player)
 	local loadout = loadouts[player]
@@ -742,6 +756,7 @@ function Combat.init()
 		loadouts[player] = nil
 		firecrackersLeft[player] = nil
 		weaponsLocked[player] = nil
+		calling[player] = nil
 	end)
 end
 

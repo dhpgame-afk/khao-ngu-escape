@@ -122,6 +122,10 @@ local function makeButton(
 	return button
 end
 
+-- ให้โมดูลอื่นสร้างปุ่ม/ป้ายสไตล์เดียวกับ HUD (เช่น RescueUi)
+Hud.makeButton = makeButton
+Hud.makeLabel = makeLabel
+
 function Hud.create(): Refs
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
@@ -542,7 +546,14 @@ function Hud.create(): Refs
 				overlay.Visible = true
 				overlay.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
 				overlay.BackgroundTransparency = 0.35
-				overlayText.Text = "ตายแล้ว — รอ " .. formatTime(secondsLeft)
+				overlayText.Text = "คุณตายแล้ว — รอเพื่อนโทรเรียก หรือไปหนังสติ๊กใน "
+					.. formatTime(secondsLeft)
+			elseif kind == "DeadRespawn" then
+				-- ตายนอกภารกิจ (เช่น ตกจากห้องรอ): เกิดใหม่เองในห้องรอ ไม่มีเพื่อนโทร/หนังสติ๊ก
+				overlay.Visible = true
+				overlay.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+				overlay.BackgroundTransparency = 0.35
+				overlayText.Text = "กำลังเกิดใหม่… " .. formatTime(secondsLeft)
 			else
 				overlay.Visible = false
 			end

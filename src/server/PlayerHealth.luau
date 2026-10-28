@@ -112,8 +112,25 @@ end
 
 -- ===== เปลี่ยนสถานะ =====
 
--- TODO(ชุดถัดไป): แทนด้วยระบบกลับเข้าแมพ (เพื่อนโทรเรียก 5 วิ / ครบ 40 วิ ไปหนังสติ๊กเลือกเป้ายิงตัว)
--- ตอนนี้แค่เกิดใหม่หลังครบ RespawnSeconds
+-- ตัวจัดการการตาย (Rescue ตั้งให้): ผู้เล่นตาย → คืน true ถ้ารับไปดูแลแล้ว (เพื่อนโทรเรียก / หนังสติ๊ก 40 วิ)
+-- คืน false (หรือเกิดข้อผิดพลาด) = ไม่ใช่เรื่องภารกิจ → ใช้ทางสำรอง: เกิดใหม่เองหลัง NonMissionRespawnSeconds
+local deathHandler: (Player) -> boolean = function(_player: Player): boolean
+	return false
+end
+
+function PlayerHealth.setDeathHandler(handler: (Player) -> boolean)
+	deathHandler = handler
+end
+
+-- ตัวกันดาเมจ (Rescue ตั้งให้): คืน true = ผู้เล่นคนนี้ไม่รับดาเมจจากลิง/เพื่อน (กำลังบินกลับเข้าแมพ/เล็งหนังสติ๊ก)
+local damageGuard: (Player) -> boolean = function(_player: Player): boolean
+	return false
+end
+
+function PlayerHealth.setDamageGuard(guard: (Player) -> boolean)
+	damageGuard = guard
+end
+
 function PlayerHealth.respawnAfterDeath(player: Player)
 	local ok, err = pcall(function()
 		player:LoadCharacter()
@@ -132,15 +149,27 @@ local function setDead(player: Player, info: Info)
 	info.character:SetAttribute("DownedHealth", 0)
 	clearTemp(info)
 	cancelRevivesInvolving(player)
-	publish(info, Workspace:GetServerTimeNow() + PCfg.RespawnSeconds)
+
+	-- ให้ Rescue รับไปดูแลก่อน (ในภารกิจ) · handler พังต้องไม่ทำให้คนตายค้างตลอดไป → ถือว่าไม่รับ ใช้ทางสำรอง
+	local okHandler, handled = pcall(deathHandler, player)
+	if not okHandler then
+		warn("[PlayerHealth] deathHandler error:", handled)
+		handled = false
+	end
+	local waitSeconds = if handled then PCfg.RespawnSeconds else PCfg.NonMissionRespawnSeconds
+	-- บอก client ว่าตายแบบไหน: "Mission" (รอเพื่อนโทร/หนังสติ๊ก) หรือ "Respawn" (เกิดใหม่เองในห้องรอ) — ตั้งก่อน State
+	info.character:SetAttribute("DeathKind", if handled then "Mission" else "Respawn")
+	publish(info, Workspace:GetServerTimeNow() + waitSeconds)
 	info.humanoid.Health = 0 -- ตั้งสถานะก่อน เพื่อให้ Died ที่ตามมาไม่ทำซ้ำ
 
-	local character = info.character
-	task.delay(PCfg.RespawnSeconds, function()
-		if player.Parent == Players and player.Character == character then
-			PlayerHealth.respawnAfterDeath(player)
-		end
-	end)
+	if not handled then
+		local character = info.character
+		task.delay(waitSeconds, function()
+			if player.Parent == Players and player.Character == character then
+				PlayerHealth.respawnAfterDeath(player)
+			end
+		end)
+	end
 end
 
 local function setDowned(player: Player, info: Info)
@@ -195,6 +224,9 @@ local function applyDamage(player: Player, amount: number, killsOutright: boolea
 	if info == nil or info.state ~= "Alive" then
 		return -- ล้ม/ตายแล้ว: ไม่รับดาเมจเพิ่ม (นับถอยหลังเดิมเดินต่อ)
 	end
+	if damageGuard(player) then
+		return -- กำลังบินกลับเข้าแมพ/เล็งหนังสติ๊ก
+	end
 	if not isFiniteNumber(amount) or amount <= 0 then
 		return
 	end
@@ -218,6 +250,9 @@ end
 -- ถ้าเป้าล้มอยู่: ตีได้ แต่ลดเลือดตอนล้มแค่ amount × DownedDamageMultiplier · หมด → ตายทันที
 function PlayerHealth.damageFromMonkey(player: Player, amount: number)
 	local info = infos[player]
+	if damageGuard(player) then
+		return
+	end
 	if info ~= nil and info.state == "Downed" then
 		if not isFiniteNumber(amount) or amount <= 0 then
 			return
@@ -235,7 +270,7 @@ end
 
 -- เพื่อนทำร้าย (ปืน/ประทัด/ไม้กวด) จน HP หมด → ล้ม
 -- (ประทัดที่ขว้างเองโดนตัวเองได้ → victim == attacker ก็ล้มแบบเดียวกัน · ผู้เรียกเป็นคนเลือกว่าอาวุธไหนโดนตัวเองได้)
-function PlayerHealth.damageFromPlayer(victim: Player, amount: number, attacker: Player)
+function PlayerHealth.damageFromPlayer(victim: Player, amount: number, _attacker: Player)
 	applyDamage(victim, amount, false)
 end
 
@@ -250,6 +285,17 @@ function PlayerHealth.grantTempHealth(player: Player): boolean
 	info.tempEndsAt = os.clock() + Config.Snacks.TempHealthSeconds
 	publishTemp(info)
 	return true
+end
+
+-- รับประกันสถานะตอนลงจากการกลับเข้าแมพ: ปกติ เลือดเต็ม ไม่มีเลือดชั่วคราว (Rescue เรียก)
+function PlayerHealth.ensureFullHealth(player: Player)
+	local info = infos[player]
+	if info == nil or info.state ~= "Alive" then
+		return
+	end
+	clearTemp(info)
+	info.humanoid.Health = PCfg.MaxHealth
+	info.lastHitClock = os.clock()
 end
 
 -- ===== ชุบ =====

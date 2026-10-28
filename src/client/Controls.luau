@@ -91,6 +91,12 @@ function Controls.start(hud: Hud.Refs, missionHud: MissionHud.Api): { onData: (p
 		return "Alive"
 	end
 
+	-- กำลังโทรเรียกเพื่อน (เซิร์ฟเวอร์ตั้ง Attribute "Calling" บนตัวละคร): ยิง ขว้าง ฟาดไม่ได้ — ไม่ส่งคำขอและไม่ลดกระสุนในจอเอง
+	local function isCalling(): boolean
+		local character = player.Character
+		return character ~= nil and character:GetAttribute("Calling") == true
+	end
+
 	local function currentGunDef(): Config.GunDef?
 		local id = combat.gunId
 		if id == nil then
@@ -210,7 +216,7 @@ function Controls.start(hud: Hud.Refs, missionHud: MissionHud.Api): { onData: (p
 	end
 
 	local function throwFirecracker()
-		if ownStateName() ~= "Alive" or combat.firecrackers <= 0 then
+		if ownStateName() ~= "Alive" or combat.firecrackers <= 0 or isCalling() then
 			return
 		end
 		local dir = getAimDirection()
@@ -224,7 +230,7 @@ function Controls.start(hud: Hud.Refs, missionHud: MissionHud.Api): { onData: (p
 
 	-- ปุ่มยิงใหญ่: ทำตามช่องอาวุธที่เลือก (ปืน = ยิง · ประทัด = ขว้าง · ไม้กวด = ฟาด)
 	local function tryPrimary()
-		if ownStateName() ~= "Alive" then
+		if ownStateName() ~= "Alive" or isCalling() then
 			return
 		end
 		local now = os.clock()
@@ -482,6 +488,9 @@ function Controls.start(hud: Hud.Refs, missionHud: MissionHud.Api): { onData: (p
 			end
 		end
 		local overlayKind = if character == nil then "Alive" else stateName
+		if overlayKind == "Dead" and character ~= nil and character:GetAttribute("DeathKind") == "Respawn" then
+			overlayKind = "DeadRespawn" -- ตายนอกภารกิจ: ข้อความ "กำลังเกิดใหม่"
+		end
 		local overlayKey = overlayKind .. ":" .. math.max(0, math.ceil(remaining))
 		if overlayKey ~= lastOverlayKey then
 			lastOverlayKey = overlayKey

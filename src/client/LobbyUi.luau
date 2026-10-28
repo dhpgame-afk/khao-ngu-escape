@@ -11,6 +11,7 @@ local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Hud = require(script.Parent.Hud)
+local MapView = require(script.Parent.MapView)
 
 local FONT = Enum.Font.GothamBold
 local DARK = Color3.fromRGB(25, 28, 33)
@@ -19,12 +20,6 @@ local GREEN = Color3.fromRGB(60, 160, 90)
 local ORANGE = Color3.fromRGB(215, 140, 40)
 local GREY = Color3.fromRGB(90, 95, 105)
 local BLUE = Color3.fromRGB(60, 120, 200)
-
--- สีจุดบนแผนที่
-local COLOR_KUTI = Color3.fromRGB(255, 213, 74)
-local COLOR_NEST = Color3.fromRGB(230, 70, 60)
-local COLOR_ROCKET = Color3.fromRGB(80, 170, 255)
-local COLOR_LANDING = Color3.fromRGB(90, 230, 120)
 
 local TOP_ROW_Y = 0.13 -- ใต้แถบปุ่มของ Roblox (IgnoreGuiInset = true) เหมือน Hud
 
@@ -116,25 +111,6 @@ local function makeButton(
 	pad.PaddingBottom = UDim.new(0.12, 0)
 	pad.Parent = button
 	return button
-end
-
-local function colorHex(color: Color3): string
-	-- %x ต้องการจำนวนเต็ม จึงปัดค่าสี 0–1 เป็น 0–255 ก่อน
-	return string.format(
-		"#%02x%02x%02x",
-		math.floor(color.R * 255 + 0.5),
-		math.floor(color.G * 255 + 0.5),
-		math.floor(color.B * 255 + 0.5)
-	)
-end
-
-local function markerColor(name: string): Color3
-	if name == "Kuti" then
-		return COLOR_KUTI
-	elseif name == "RocketPad" then
-		return COLOR_ROCKET
-	end
-	return COLOR_NEST
 end
 
 -- ===== เริ่มระบบ =====
@@ -290,27 +266,8 @@ function LobbyUi.start(
 	-- ===== แผนที่เลือกจุดลง =====
 	local mapWidth = 2 * Config.Map.HalfWidthStuds
 	local mapDepth = 2 * Config.Map.HalfDepthStuds
-	local mapFrame = Instance.new("Frame")
-	mapFrame.Name = "Map"
-	mapFrame.Position = UDim2.fromScale(0.37, 0.20)
-	mapFrame.Size = UDim2.fromScale(0.41, 0.50)
-	mapFrame.BackgroundColor3 = Color3.fromRGB(40, 70, 48)
-	mapFrame.BorderSizePixel = 0
-	mapFrame.Parent = lobbyRoot
-	addCorner(mapFrame, 0.03)
-	local mapStroke = Instance.new("UIStroke")
-	mapStroke.Color = WHITE
-	mapStroke.Transparency = 0.5
-	mapStroke.Thickness = 2
-	mapStroke.Parent = mapFrame
-	local mapRatio = Instance.new("UIAspectRatioConstraint")
-	mapRatio.AspectRatio = mapWidth / mapDepth -- แมพกว้างกว่าสูง ≈ 970 × 640
-	mapRatio.Parent = mapFrame
-
-	local northLabel =
-		makeLabel(mapFrame, "North", "เหนือ", UDim2.fromScale(0.4, 0.0), UDim2.fromScale(0.2, 0.08), 16)
-	northLabel.ZIndex = 5
-	northLabel.TextTransparency = 0.3
+	local mapView = MapView.create(lobbyRoot, UDim2.fromScale(0.37, 0.20), UDim2.fromScale(0.41, 0.50))
+	local mapFrame = mapView.frame
 
 	local function requestLanding(worldX: number, worldZ: number)
 		local s = snapshot
@@ -352,59 +309,7 @@ function LobbyUi.start(
 		end
 	end
 
-	local function makeDot(name: string, color: Color3, sizeScale: number, zIndex: number): Frame
-		local dot = Instance.new("Frame")
-		dot.Name = name
-		dot.AnchorPoint = Vector2.new(0.5, 0.5)
-		dot.Size = UDim2.fromScale(sizeScale, sizeScale)
-		dot.BackgroundColor3 = color
-		dot.BorderSizePixel = 0
-		dot.ZIndex = zIndex
-		dot.Parent = mapFrame
-		addCorner(dot, 0.5)
-		local ratio = Instance.new("UIAspectRatioConstraint")
-		ratio.AspectRatio = 1
-		ratio.Parent = dot
-		return dot
-	end
-
-	local function worldToMap(x: number, z: number): UDim2
-		return UDim2.fromScale(
-			math.clamp((x + Config.Map.HalfWidthStuds) / mapWidth, 0, 1),
-			math.clamp((z + Config.Map.HalfDepthStuds) / mapDepth, 0, 1)
-		)
-	end
-
-	local markerDots: { [string]: Frame } = {}
-	local lastMarkerKey = ""
-	local function updateMarkers(markers: any)
-		if type(markers) ~= "table" then
-			return
-		end
-		local key = ""
-		for _, m in markers do
-			if type(m) == "table" and type(m.name) == "string" and type(m.x) == "number" and type(m.z) == "number" then
-				key ..= m.name .. ":" .. math.floor(m.x) .. ":" .. math.floor(m.z) .. ";"
-			end
-		end
-		if key == lastMarkerKey then
-			return
-		end
-		lastMarkerKey = key
-		for _, dot in markerDots do
-			dot:Destroy()
-		end
-		markerDots = {}
-		for _, m in markers do
-			if type(m) == "table" and type(m.name) == "string" and type(m.x) == "number" and type(m.z) == "number" then
-				local dot = makeDot(m.name, markerColor(m.name), 0.045, 3)
-				dot.Position = worldToMap(m.x, m.z)
-				markerDots[m.name] = dot
-			end
-		end
-	end
-
-	local landingDot = makeDot("Landing", COLOR_LANDING, 0.07, 4)
+	local landingDot = mapView.makeDot("Landing", MapView.COLOR_LANDING, 0.07, 4)
 	local landingStroke = Instance.new("UIStroke")
 	landingStroke.Color = WHITE
 	landingStroke.Thickness = 2
@@ -416,10 +321,10 @@ function LobbyUi.start(
 	legendLabel.RichText = true
 	legendLabel.Text = string.format(
 		'<font color="%s">●</font> กุฏิ  <font color="%s">●</font> รังลิง  <font color="%s">●</font> ฐานบั้งไฟ  <font color="%s">●</font> จุดลง',
-		colorHex(COLOR_KUTI),
-		colorHex(COLOR_NEST),
-		colorHex(COLOR_ROCKET),
-		colorHex(COLOR_LANDING)
+		MapView.colorHex(MapView.COLOR_KUTI),
+		MapView.colorHex(MapView.COLOR_NEST),
+		MapView.colorHex(MapView.COLOR_ROCKET),
+		MapView.colorHex(MapView.COLOR_LANDING)
 	)
 
 	-- ===== ปุ่มพร้อม + นับถอยหลัง =====
@@ -607,9 +512,9 @@ function LobbyUi.start(
 				.. ")"
 		end
 
-		updateMarkers(s.markers)
+		mapView.setMarkers(s.markers)
 		if type(s.landingX) == "number" and type(s.landingZ) == "number" then
-			landingDot.Position = worldToMap(s.landingX, s.landingZ)
+			landingDot.Position = mapView.worldToMap(s.landingX, s.landingZ)
 			landingDot.Visible = true
 		else
 			landingDot.Visible = false
