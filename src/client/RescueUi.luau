@@ -34,7 +34,7 @@ local CALL_BUTTON_CENTER = Vector2.new(0.62, 0.36)
 local CALL_BUTTON_SIZE = 0.19
 local KEY_CALL = Enum.KeyCode.T -- คีย์ลัดบนคอม (มือถือใช้ปุ่มบนจอ)
 
-type Mate = { userId: number, x: number, z: number, alive: boolean }
+export type Mate = { userId: number, x: number, z: number, alive: boolean }
 
 type State = {
 	stage: string, -- "None" | "Dead" | "Aiming" | "Flying"
@@ -50,6 +50,7 @@ type Candidate = { userId: number, humanoid: Humanoid, name: string }
 
 export type Api = {
 	onSnapshot: (snapshot: { [string]: any }) -> (), -- MissionState (ไว้วาดจุดสำคัญบนแผนที่เล็ง)
+	getMates: () -> { Mate }, -- ตำแหน่งเพื่อนร่วมภารกิจล่าสุดจากเซิร์ฟเวอร์ (อ่านอย่างเดียว · NavMap ใช้)
 }
 
 local RescueUi = {}
@@ -605,6 +606,9 @@ function RescueUi.start(): Api
 	return {
 		onSnapshot = function(snapshot: { [string]: any })
 			mapView.setMarkers(snapshot.markers)
+		end,
+		getMates = function(): { Mate }
+			return state.mates
 		end,
 	}
 end

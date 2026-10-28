@@ -471,6 +471,106 @@ local Config = {
 		RequestCooldownSeconds = 0.5, -- จำกัดความถี่คำขอต่อผู้เล่น
 	},
 
+	-- แผนที่นำทาง (กดปุ่มค้างถึงจะโชว์ · ฝั่ง client ล้วน ไม่ใช้ remote) สไตล์แผนที่ขุมทรัพย์บนม้วนกระดาษ วาดจาก GUI ล้วน
+	NavMap = {
+		DisplayOrder = 2, -- สูงกว่า HUD (0) · ต่ำกว่าหน้าเล็งหนังสติ๊ก (3)
+		ButtonCenter = Vector2.new(0.07, 0.36), -- ซ้ายกลางจอ เหนือโซนจอยเดิน (y > 0.55) ใต้แถบเลือด (สิ้นสุด ~0.22) · ไม่ทับปุ่มดูเพื่อน (0.14, 0.50)
+		ButtonSize = 0.16, -- เทียบความสูงจอ (ปุ่มกลม)
+		ButtonText = "แผนที่",
+		ButtonColor = Color3.fromRGB(170, 120, 60),
+		HoldKey = Enum.KeyCode.M, -- คีย์ลัดบนคอม: กดค้างเพื่อดู
+		ButtonCheckSeconds = 0.25, -- ตรวจว่าควรโชว์ปุ่มไหม (อยู่ในภารกิจ + ยังไม่ตาย) ทุกกี่วินาที
+		UpdateHz = 10, -- แผนที่อัปเดตตำแหน่งกี่ครั้งต่อวินาทีตอนเปิดอยู่
+
+		-- ขนาดแผ่นม้วนกระดาษ (เทียบจอ · UIAspectRatioConstraint คุมสัดส่วน ไม่ให้เบี้ยว)
+		WidthFraction = 0.8,
+		HeightFraction = 0.94,
+		CenterY = 0.5,
+		ScrollAspect = 1.6, -- กว้าง ÷ สูง ของม้วนกระดาษทั้งแผ่น
+		RollWidth = 0.055, -- ความกว้างแกนม้วนแต่ละข้าง (เทียบความกว้างแผ่น)
+		PaperInsetX = 0.03, -- กระดาษเริ่มห่างขอบแผ่นเท่านี้ (ให้แกนม้วนทับขอบ)
+		PaperInsetY = 0.03,
+		LandCenterY = 0.49, -- ตำแหน่งแผนที่จริง (เทียบความสูงแผ่น)
+		LandWidthFraction = 0.82, -- กล่องที่แผนที่จริงอยู่ (ภาพถูกบีบด้วยสัดส่วนแมพจริงอีกชั้น)
+		LandHeightFraction = 0.74,
+		TitleText = "แผนที่เขางู",
+		TitleCenterY = 0.075,
+		DistanceCenterY = 0.915,
+		NoTargetText = "ยังไม่รู้ว่าเป้าหมายอยู่ที่ไหน",
+		DistanceToKuti = "ถึงกุฏิ",
+		DistanceToRocket = "ถึงฐานบั้งไฟ",
+
+		-- สี
+		PaperColorTop = Color3.fromRGB(222, 180, 90),
+		PaperColorBottom = Color3.fromRGB(196, 150, 60),
+		PaperTransparency = 0.04,
+		RollColor = Color3.fromRGB(128, 84, 40),
+		RollLightColor = Color3.fromRGB(176, 124, 66),
+		EdgeColor = Color3.fromRGB(110, 70, 30),
+		LandColor = Color3.fromRGB(236, 205, 125),
+		LandTransparency = 0.35,
+		InkColor = Color3.fromRGB(88, 54, 24), -- ตัวหนังสือ / เส้นประ (น้ำตาลเข้ม)
+		InkStrokeColor = Color3.fromRGB(244, 222, 160), -- ขอบตัวหนังสือสีกระดาษ อ่านง่ายบนต้นไม้/แม่น้ำ
+		TargetColor = Color3.fromRGB(208, 40, 40), -- กากบาทแดง
+		NestColor = Color3.fromRGB(150, 95, 50),
+		KutiBodyColor = Color3.fromRGB(240, 205, 100),
+		KutiRoofColor = Color3.fromRGB(176, 62, 42),
+		RocketColor = Color3.fromRGB(235, 235, 245),
+		RocketNoseColor = Color3.fromRGB(215, 60, 50),
+		PlayerColor = Color3.fromRGB(40, 110, 220),
+		PlayerOutline = Color3.fromRGB(255, 255, 255),
+		DeadMateColor = Color3.fromRGB(140, 140, 140),
+		MateColors = { Color3.fromRGB(70, 175, 90), Color3.fromRGB(165, 80, 200), Color3.fromRGB(235, 140, 40) },
+		ItemColors = {
+			FoodBasket = Color3.fromRGB(150, 90, 40),
+			MoneyBag = Color3.fromRGB(255, 200, 40),
+			SnackPack = Color3.fromRGB(245, 120, 60),
+		},
+		TreeColor = Color3.fromRGB(80, 145, 70),
+		TreeDarkColor = Color3.fromRGB(50, 100, 50),
+		RiverColor = Color3.fromRGB(90, 160, 215),
+
+		-- ขนาดของบนแผนที่ (เทียบความสูงแผนที่)
+		MarkerSize = 0.085,
+		PlayerSize = 0.085,
+		MateSize = 0.05,
+		ItemSize = 0.045,
+		TargetSize = 0.11,
+		TargetBarThickness = 0.22, -- ความหนาขีดกากบาท เทียบขนาดกากบาท
+		TreeSize = 0.05,
+
+		-- เส้นประเดินทาง (หน่วย: เทียบความสูงแผนที่)
+		DashLength = 0.035,
+		DashGap = 0.03,
+		DashThickness = 0.012,
+		DashPoolSize = 40, -- เส้นประที่สร้างไว้ใช้ซ้ำ (เส้นทแยงสุดของแผนที่ ≈ 28 ขีด)
+		DashStartPad = 0.05, -- เว้นปลายทางฝั่งผู้เล่น/ฝั่งกากบาท ไม่ให้ทับไอคอน
+		DashEndPad = 0.045,
+
+		-- ของตกแต่ง (วาดครั้งเดียว): ต้นไม้เป็นกลุ่ม · แม่น้ำเป็นเส้นคดเคี้ยว · พิกัด 0–1 บนแผนที่
+		TreeClusters = {
+			Vector2.new(0.08, 0.12),
+			Vector2.new(0.45, 0.08),
+			Vector2.new(0.74, 0.14),
+			Vector2.new(0.92, 0.38),
+			Vector2.new(0.10, 0.60),
+			Vector2.new(0.26, 0.88),
+			Vector2.new(0.62, 0.90),
+			Vector2.new(0.90, 0.84),
+		},
+		TreeOffsets = { Vector2.new(0, 0), Vector2.new(0.035, 0.03), Vector2.new(-0.03, 0.035) }, -- ต้นไม้ในกลุ่ม (เทียบความสูงแผนที่)
+		RiverSegments = 16,
+		RiverStartU = 0.22,
+		RiverEndU = 0.36,
+		RiverAmplitude = 0.04,
+		RiverWaves = 2.5,
+		RiverThickness = 0.02,
+
+		-- เข็มทิศ (มุมขวาบนของกระดาษ)
+		CompassCenter = Vector2.new(0.905, 0.22),
+		CompassSize = 0.075, -- เทียบความกว้างแผ่น (วงกลมจำกัดด้วยความสูงเท่ากัน)
+	},
+
 	-- ธงดีบัก (ชั่วคราว) — ปิดให้เป็น false ก่อน Publish
 	Debug = {
 		BroomSwing = true, -- พิมพ์ลง Output ตอนฟาดไม้กวด (ฝั่ง client และ server)
