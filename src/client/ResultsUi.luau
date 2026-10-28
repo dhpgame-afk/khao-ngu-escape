@@ -1,7 +1,7 @@
 --!strict
 -- ResultsUi: หน้าสรุปจบภารกิจ (มือถือเป็นหลัก — Scale ทั้งหมด + UIAspectRatioConstraint · ข้อความไทย)
 -- - client "โง่": วาดตามข้อมูลที่เซิร์ฟเวอร์ส่งมาใน MissionState.results ตอนช่วง Results เท่านั้น (เงินคิดและจ่ายที่เซิร์ฟเวอร์แล้ว)
--- - แถวละ 1 คน: ชื่อ · ฆ่าลิง · เรียกเพื่อน · เงินที่ได้ · ขนม · สถานะ (ขึ้นบั้งไฟ / ถูกทิ้ง)
+-- - แถวละ 1 คน: ชื่อ · ลิงที่ฆ่า · เพื่อนที่เรียก · เงินจากลิง (จ่ายตอนจบภารกิจ) · เงินรวม · ขนม · สถานะ (ขึ้นบั้งไฟ / ถูกทิ้ง)
 -- - ปุ่ม "ปิด" แค่ปิดหน้านี้ (เซิร์ฟเวอร์พากลับห้องรอเองเมื่อครบเวลา)
 
 local Players = game:GetService("Players")
@@ -24,25 +24,29 @@ local GOLD = Color3.fromRGB(255, 205, 70)
 local PANEL_ASPECT = 1.8 -- กว้าง ÷ สูง ของกล่องสรุป
 local TITLE_Y, TITLE_H = 0.03, 0.12
 local SUBTITLE_Y, SUBTITLE_H = 0.15, 0.08
-local HEADER_Y, HEADER_H = 0.25, 0.06
-local ROWS_Y, ROW_H, ROW_GAP = 0.32, 0.115, 0.01
+local HEADER_Y, HEADER_H = 0.25, 0.08
+local ROWS_Y, ROW_H, ROW_GAP = 0.34, 0.11, 0.01 -- แถวสุดท้ายจบที่ ~0.81 อยู่เหนือแถบล่าง (FOOTER_Y)
+local CELL_MIN_TEXT = 12 -- ตัวหนังสือในตารางไม่เล็กกว่านี้ (จอมือถือเล็ก ~844x390)
+local CELL_MAX_TEXT = 22
 local FOOTER_Y, FOOTER_H = 0.85, 0.12
 
 -- คอลัมน์ (เริ่ม, กว้าง) เป็นสัดส่วนความกว้างแถว
 local COLUMNS = {
-	name = { 0.02, 0.28 },
-	kills = { 0.30, 0.13 },
-	calls = { 0.43, 0.14 },
-	money = { 0.57, 0.17 },
-	snacks = { 0.74, 0.11 },
-	status = { 0.85, 0.14 },
+	name = { 0.02, 0.25 },
+	kills = { 0.27, 0.08 },
+	calls = { 0.35, 0.09 },
+	killMoney = { 0.44, 0.15 },
+	money = { 0.59, 0.14 },
+	snacks = { 0.73, 0.09 },
+	status = { 0.82, 0.16 },
 }
-local COLUMN_ORDER = { "name", "kills", "calls", "money", "snacks", "status" }
+local COLUMN_ORDER = { "name", "kills", "calls", "killMoney", "money", "snacks", "status" }
 local HEADER_TEXT = {
 	name = "ผู้เล่น",
-	kills = "ฆ่าลิง",
-	calls = "เรียกเพื่อน",
-	money = "เงินที่ได้",
+	kills = "ลิง",
+	calls = "เรียก",
+	killMoney = "จากลิง",
+	money = "เงินรวม",
 	snacks = "ขนม",
 	status = "สถานะ",
 }
@@ -63,6 +67,11 @@ local function makeCell(parent: Instance, column: string, text: string, y: numbe
 	local span = COLUMNS[column]
 	local label = Hud.makeLabel(parent, column, text, UDim2.fromScale(span[1], y), UDim2.fromScale(span[2], h))
 	label.TextXAlignment = if column == "name" then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center
+	local sizeLimit = label:FindFirstChildOfClass("UITextSizeConstraint")
+	if sizeLimit ~= nil then
+		sizeLimit.MinTextSize = CELL_MIN_TEXT
+		sizeLimit.MaxTextSize = CELL_MAX_TEXT
+	end
 	return label
 end
 
@@ -192,6 +201,7 @@ function ResultsUi.start(): Api
 				row.cells.name.Text = if type(data.name) == "string" then data.name else "-"
 				row.cells.kills.Text = tostring(number(data.kills))
 				row.cells.calls.Text = tostring(number(data.calls))
+				row.cells.killMoney.Text = "+" .. number(data.killMoney)
 				row.cells.money.Text = "+" .. number(data.money)
 				local snacks = number(data.snacks)
 				row.cells.snacks.Text = if snacks > 0 then "+" .. snacks else "-"

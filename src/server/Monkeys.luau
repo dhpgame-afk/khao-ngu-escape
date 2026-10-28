@@ -53,7 +53,7 @@ local records: { [Model]: MonkeyRec } = {} -- เฉพาะลิงที่�
 local corpses: { [Model]: boolean } = {}
 local aliveCount = 0
 local missionKills: { [Player]: number } = {} -- สถิติรอบภารกิจนี้ (หน้าสรุปผล) · เริ่มใหม่ตอนยิงหนังสติ๊กเริ่มภารกิจ
-local missionKillMoney: { [Player]: number } = {} -- เงินที่ได้จากฆ่าลิงรอบนี้ (จ่ายสดตอนฆ่าแล้ว ที่นี่แค่จดไว้โชว์)
+local missionKillMoney: { [Player]: number } = {} -- เงินจากฆ่าลิงรอบนี้ที่ "รอจ่ายตอนจบภารกิจ" (ยังไม่เข้ากระเป๋า · ไม่เซฟ · ผู้เล่นออก = หายทั้งก้อน)
 local started = false
 local monkeyFolder: Folder? = nil
 local rayParams = RaycastParams.new()
@@ -262,10 +262,9 @@ local function killMonkey(rec: MonkeyRec, attacker: Player?)
 	end
 
 	if attacker ~= nil and attacker.Parent == Players then
-		-- จดเงินลงสถิติเฉพาะเมื่อจ่ายได้จริง (เซฟไม่ได้ = ไม่ได้เงิน ไม่โชว์เงินที่ไม่มีอยู่จริง)
-		if PlayerData.addMoney(attacker, MC.MoneyPerKill) then
-			missionKillMoney[attacker] = (missionKillMoney[attacker] or 0) + MC.MoneyPerKill
-		end
+		-- เงินจากลิง "ไม่จ่ายสด" — จดสะสมไว้ในสถานะภารกิจ (ไม่เซฟ) แล้ว Settlement จ่ายตอนจบภารกิจ
+		-- กันเข้า-ฟาร์ม-ออกซ้ำ (security-auditor M2)
+		missionKillMoney[attacker] = (missionKillMoney[attacker] or 0) + MC.MoneyPerKill
 		PlayerData.addStat(attacker, "monkeysKilled", 1)
 		missionKills[attacker] = (missionKills[attacker] or 0) + 1
 	end
@@ -629,13 +628,19 @@ function Monkeys.spawnRaid(position: Vector3, count: number): number
 	return spawned
 end
 
--- สถิติรอบภารกิจนี้ (หน้าสรุปผล) · ฆ่ากี่ตัว / เงินจากการฆ่า
+-- สถิติรอบภารกิจนี้ (หน้าสรุปผล) · ฆ่ากี่ตัว / เงินจากการฆ่าที่รอจ่ายตอนจบ
 function Monkeys.getMissionKills(player: Player): number
 	return missionKills[player] or 0
 end
 
+-- เงินที่สะสมรอจ่าย (Settlement เป็นคนจ่าย)
 function Monkeys.getMissionKillMoney(player: Player): number
 	return missionKillMoney[player] or 0
+end
+
+-- Settlement เรียกหลังจ่ายแล้ว: ล้างยอดรอจ่ายของคนนี้ กันจ่ายซ้ำถ้ามีใครเรียก Settlement ซ้ำ
+function Monkeys.clearMissionKillMoney(player: Player)
+	missionKillMoney[player] = nil
 end
 
 function Monkeys.resetMissionStats()

@@ -555,7 +555,8 @@ function Controls.start(hud: Hud.Refs, missionHud: MissionHud.Api): { onData: (p
 		end
 
 		-- ปุ่มตามสถานการณ์ (ปุ่มเดียว): ชุบเพื่อนที่ล้มอยู่ใกล้ ๆ ก่อน · ไม่มี → ถวายอาหาร/หยิบของ (MissionHud ตัดสิน)
-		local target = if stateName == "Alive" then findReviveTarget() else nil
+		-- ยกเว้นมัดตัวบนบั้งไฟอยู่: "แก้มัด" มาก่อนเสมอ (เซิร์ฟเวอร์ก็ไม่ให้คนที่มัดอยู่ชุบเพื่อนด้วย)
+		local target = if stateName == "Alive" and not missionHud.isTied() then findReviveTarget() else nil
 		contextIsRevive = target ~= nil
 		contextOther = if target == nil and stateName == "Alive" then missionHud.getContext() else nil
 		if contextIsRevive then

@@ -554,6 +554,7 @@ function Rocket.untie(player: Player, restoreCharacter: boolean?)
 	end
 	if restoreCharacter and record.root.Parent ~= nil then
 		record.root.Anchored = false
+		record.root.AssemblyLinearVelocity = Vector3.zero -- ไม่ให้พุ่งตามความเร็วค้างตอนปลดตรึง
 		AntiTeleport.reset(player)
 		local humanoid = record.humanoid
 		if humanoid ~= nil and humanoid.Parent ~= nil then

@@ -139,6 +139,23 @@ local function isDamageGuarded(player: Player): boolean
 	return false
 end
 
+-- ตัวกันการชุบ: ระบบอื่นเพิ่มได้ (Mission: คนที่มัดตัวบนบั้งไฟชุบเพื่อนไม่ได้ — ปุ่มกลางขวาเป็น "แก้มัด")
+-- ตัวใดตัวหนึ่งคืน true = คนนี้เริ่ม/ชุบต่อไม่ได้
+local reviveGuards: { (Player) -> boolean } = {}
+
+function PlayerHealth.addReviveGuard(guard: (Player) -> boolean)
+	table.insert(reviveGuards, guard)
+end
+
+local function isReviveGuarded(player: Player): boolean
+	for _, guard in reviveGuards do
+		if guard(player) then
+			return true
+		end
+	end
+	return false
+end
+
 function PlayerHealth.respawnAfterDeath(player: Player)
 	local ok, err = pcall(function()
 		player:LoadCharacter()
@@ -310,7 +327,7 @@ end
 
 local function startRevive(reviver: Player, targetUserId: number)
 	local reviverInfo = infos[reviver]
-	if reviverInfo == nil or reviverInfo.state ~= "Alive" then
+	if reviverInfo == nil or reviverInfo.state ~= "Alive" or isReviveGuarded(reviver) then
 		return
 	end
 	local target = Players:GetPlayerByUserId(targetUserId)
@@ -358,6 +375,7 @@ local function tickRevives(now: number)
 		local valid = reviverInfo ~= nil
 			and targetInfo ~= nil
 			and reviverInfo.state == "Alive"
+			and not isReviveGuarded(reviver)
 			and targetInfo.state == "Downed"
 			and a ~= nil
 			and b ~= nil

@@ -35,6 +35,7 @@ type Session = {
 	leaving: boolean,
 	released: boolean, -- เซฟครั้งสุดท้าย + ปล่อยล็อกแล้ว
 	message: string?, -- ข้อความภาษาไทยแจ้งผู้เล่น
+	messageIsPaymentFailure: boolean, -- message ปัจจุบันเป็นข้อความ "จ่ายรางวัลไม่ได้" (ล้างได้เมื่อจ่ายสำเร็จ · ข้อความอื่นห้ามล้าง)
 }
 
 local PlayerData = {}
@@ -298,6 +299,7 @@ local function doSave(session: Session, release: boolean): boolean
 			)
 			session.saveable = false
 			session.message = MSG_LOST_LOCK
+			session.messageIsPaymentFailure = false -- ข้อความเสียล็อกทับข้อความจ่ายไม่ได้ · ห้ามถูกล้างตอนจ่ายสำเร็จ
 			pushToOwner(session)
 			return false
 		end
@@ -379,6 +381,7 @@ local function onPlayerAdded(player: Player)
 		leaving = false,
 		released = false,
 		message = nil,
+		messageIsPaymentFailure = false,
 	}
 	sessions[player] = session
 
@@ -516,9 +519,35 @@ function PlayerData.isSaveable(player: Player): boolean
 end
 
 -- ซื้อ/แลกได้ไหม: เซฟได้จริง หรืออยู่ในโหมดทดสอบ Studio (เล่นในหน่วยความจำ ไม่เซฟ)
+-- กำลังออกเกม (leaving) = false: saveSession ของตอนออกอาจกำลังรอ DataStore อยู่ ของที่เพิ่มหลังเซฟรอบสุดท้ายจะหายเงียบ ๆ
 function PlayerData.canTransact(player: Player): boolean
 	local session = sessions[player]
-	return session ~= nil and session.loaded and (session.saveable or session.unsavedTest)
+	return session ~= nil and session.loaded and not session.leaving and (session.saveable or session.unsavedTest)
+end
+
+-- แจ้งเจ้าของว่ารางวัลรอบนี้เข้าบัญชีไม่ได้ (ใช้แถบเตือนระบบบันทึกเดิม) — ไม่ทับข้อความเตือนที่มีอยู่แล้ว
+-- กำลังออกจากเกม = ไม่ทำอะไร (ไม่มีใครเห็นข้อความแล้ว)
+function PlayerData.notifyPaymentFailed(player: Player, text: string)
+	local session = sessions[player]
+	if session == nil or not session.loaded or session.leaving then
+		return
+	end
+	if session.message == nil then
+		session.message = text
+		session.messageIsPaymentFailure = true
+	end
+	pushToOwner(session)
+end
+
+-- ล้างข้อความ "จ่ายรางวัลไม่ได้" หลังจ่ายสำเร็จรอบถัดมา — ล้างเฉพาะข้อความชนิดนี้ (MSG_LOCKED ฯลฯ อยู่ต่อ)
+function PlayerData.clearPaymentFailed(player: Player)
+	local session = sessions[player]
+	if session == nil or not session.loaded or not session.messageIsPaymentFailure then
+		return
+	end
+	session.message = nil
+	session.messageIsPaymentFailure = false
+	pushToOwner(session)
 end
 
 local function isPositiveInteger(n: any): boolean

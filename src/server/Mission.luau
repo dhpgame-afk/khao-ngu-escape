@@ -452,7 +452,9 @@ function Mission.endMission()
 	step("clearMissionObjects", clearMissionObjects) -- ตะกร้าและของภารกิจ · คนถือของปล่อยของ
 	step("Monkeys.resetAll", function()
 		Monkeys.resetAll() -- ล้างลิงทั้งหมด รวมลิงบุกช่วงบั้งไฟ
-		Monkeys.resetMissionStats()
+	end)
+	step("Monkeys.resetMissionStats", function()
+		Monkeys.resetMissionStats() -- ล้างเงินจากลิงที่รอจ่าย/จำนวนที่ฆ่า กันตกค้างไปภารกิจหน้า (แยกขั้น กัน resetAll พังแล้วข้าม)
 	end)
 
 	-- เปลี่ยนเป็น Lobby ก่อนเกิดใหม่ เพื่อให้ onCharacterAdded ส่งทุกคนเข้าห้องรอ
@@ -1026,6 +1028,23 @@ local function onRocketTie(player: Player)
 	end
 end
 
+-- แก้มัดตัวเอง: เฉพาะช่วง Rocket ที่ยังไม่ยิง (rocketLaunching = false) · ต้องมัดอยู่จริง (ตัวละครตัวเดิม)
+-- ปลดตรึง คืนการเดิน/กระโดด จุดมัดว่างให้คนอื่น · ดาเมจ/ล็อกถือของคิดจาก Rocket.isTied สดทุกครั้ง จึงหายเองทันที
+-- ยังมัดใหม่ได้ถ้าช่วงมัดตัวยังเปิด (onRocketTie ตรวจเอง)
+local function onRocketUntie(player: Player)
+	if not RateLimit.allow(player, "RocketUntie", RocketCfg.UntieMinIntervalSeconds) then
+		return
+	end
+	if phase ~= "Rocket" or rocketLaunching or os.clock() >= rocketEndsClock then
+		return
+	end
+	if not Mission.canInteract(player) or not Rocket.isTied(player) then
+		return
+	end
+	Rocket.untie(player, true)
+	refreshRocketBoard() -- tiedCount/freeSpots เปลี่ยน → broadcast ให้ทุกคน (แผงสถานะ + ปุ่ม)
+end
+
 -- ===== ผู้เล่นเข้า/ออก =====
 
 local function registerPlayer(player: Player)
@@ -1164,12 +1183,14 @@ function Mission.init()
 	Remotes.remoteEvent("OfferFood").OnServerEvent:Connect(onOfferFood) -- ()
 	Remotes.remoteEvent("RocketIgnite").OnServerEvent:Connect(onRocketIgnite) -- () จุดชนวนบั้งไฟ
 	Remotes.remoteEvent("RocketTie").OnServerEvent:Connect(onRocketTie) -- () มัดตัวขึ้นบั้งไฟ
+	Remotes.remoteEvent("RocketUntie").OnServerEvent:Connect(onRocketUntie) -- () แก้มัดตัวเอง (ก่อนยิงเท่านั้น)
 
 	-- คนที่มัดตัวบนบั้งไฟแล้ว: ไม่รับดาเมจ (ไม่ล้มค้างบนบั้งไฟ) · หยิบ/วางของไม่ได้ (ของที่ถือติดไปกับบั้งไฟ)
 	-- ช่วงยิงขึ้นฟ้าและหน้าสรุปผล: ทุกคนไม่รับดาเมจ (ผลถูกล็อกแล้ว ไม่ให้ลิงมาเปลี่ยนผล/ฆ่าคนระหว่างดูสรุป)
 	PlayerHealth.addDamageGuard(function(player: Player): boolean
 		return Rocket.isTied(player) or phase == "Results" or (phase == "Rocket" and rocketLaunching)
 	end)
+	PlayerHealth.addReviveGuard(Rocket.isTied) -- คนที่มัดตัวอยู่ชุบเพื่อนไม่ได้ (ฝั่ง client ปุ่มเป็น "แก้มัด")
 	Carry.setLockGuard(Rocket.isTied)
 	Monkeys.setRaidTargetExcluded(Rocket.isTied) -- ลิงบุกไม่เลือกคนที่มัดตัวบนบั้งไฟเป็นเป้า (ตีไม่เข้าอยู่แล้ว)
 	AntiTeleport.init(Mission.isInPlay)

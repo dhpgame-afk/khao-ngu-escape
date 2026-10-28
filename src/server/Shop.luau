@@ -99,11 +99,16 @@ function Shop.exchangeSnacks(player: Player, amount: any): Result
 	if data == nil or amount < 1 or amount > data.snacks then
 		return fail("จำนวนขนมไม่ถูกต้อง")
 	end
-	if not PlayerData.removeSnacks(player, amount) then
+	-- เพิ่มเงินก่อน แล้วค่อยหักขนม: ถ้าเพิ่มเงินไม่ได้ (เซฟไม่ได้/กำลังออกเกม) ยังไม่ได้แตะขนมเลย
+	-- ไม่มี yield ระหว่างขั้นตอน จึงไม่เกิดแลกซ้อนกัน
+	local gained = amount * Config.Snacks.ExchangeMoney
+	if not PlayerData.addMoney(player, gained) then
 		return fail("แลกไม่สำเร็จ ลองใหม่อีกครั้ง")
 	end
-	local gained = amount * Config.Snacks.ExchangeMoney
-	PlayerData.addMoney(player, gained)
+	if not PlayerData.removeSnacks(player, amount) then
+		PlayerData.spendMoney(player, gained) -- หักขนมพลาด (ไม่ควรเกิด): ดึงเงินที่เพิ่งให้คืน ไม่ให้ได้เงินฟรี
+		return fail("แลกไม่สำเร็จ ลองใหม่อีกครั้ง")
+	end
 	return { ok = true, message = "แลกขนม " .. amount .. " ห่อ ได้เงิน " .. gained }
 end
 

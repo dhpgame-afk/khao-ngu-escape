@@ -17,7 +17,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Hud = require(script.Parent.Hud)
 
 export type ContextAction = {
-	kind: string, -- "offer" (ถวายอาหาร) | "pickup" (หยิบของ) | "ignite" (จุดชนวนบั้งไฟ) | "tie" (มัดตัวขึ้นบั้งไฟ)
+	kind: string, -- "offer" (ถวายอาหาร) | "pickup" (หยิบของ) | "ignite" (จุดชนวนบั้งไฟ) | "tie" (มัดตัวขึ้นบั้งไฟ) | "untie" (แก้มัด)
 	text: string, -- ข้อความบนปุ่ม
 	itemName: string?, -- ชนิดของที่จะหยิบ (kind = "pickup")
 }
@@ -26,6 +26,7 @@ export type Api = {
 	onSnapshot: (snapshot: { [string]: any }) -> (),
 	onData: (payload: any) -> (),
 	getContext: () -> ContextAction?,
+	isTied: () -> boolean, -- มัดตัวบนบั้งไฟอยู่ (ปุ่มกลางขวาต้องเป็น "แก้มัด" ไม่ใช่ "ชุบเพื่อน")
 	activate: (action: ContextAction) -> (),
 }
 
@@ -43,6 +44,7 @@ function MissionHud.start(hud: Hud.Refs): Api
 	local toastRemote = remotes:WaitForChild("MissionToast") :: RemoteEvent
 	local igniteRemote = remotes:WaitForChild("RocketIgnite") :: RemoteEvent
 	local tieRemote = remotes:WaitForChild("RocketTie") :: RemoteEvent
+	local untieRemote = remotes:WaitForChild("RocketUntie") :: RemoteEvent
 
 	-- สถานะจากเซิร์ฟเวอร์
 	local active = false -- อยู่ในภารกิจ (ช่วง InMission / Rocket และเป็นผู้ร่วมภารกิจ)
@@ -59,6 +61,7 @@ function MissionHud.start(hud: Hud.Refs): Api
 		{ kind = "ignite", text = "จุดชนวนบั้งไฟ", itemName = nil }
 	local tieAction: ContextAction =
 		{ kind = "tie", text = "มัดตัวขึ้นบั้งไฟ", itemName = nil }
+	local untieAction: ContextAction = { kind = "untie", text = "แก้มัด", itemName = nil }
 	local waitActions: { [number]: ContextAction } = {} -- ปุ่มข้อความล้วน "ยื้อไว้! มัดตัวได้ใน N วิ" (กดแล้วไม่ส่งอะไร) แยกตาม N
 
 	-- ===== อ่านสถานะตัวเอง =====
@@ -175,7 +178,21 @@ function MissionHud.start(hud: Hud.Refs): Api
 	end
 
 	local function getContext(): ContextAction?
-		if not active or ownStateName() ~= "Alive" or isTiedNow() then
+		if not active or ownStateName() ~= "Alive" then
+			return nil
+		end
+		if isTiedNow() then
+			-- มัดอยู่: ปุ่มกลางขวาเป็น "แก้มัด" จนกว่าจะยิงบั้งไฟ (เซิร์ฟเวอร์ตรวจซ้ำเอง)
+			local info = rocketInfo
+			local endsAt = if info ~= nil then info.endsAt else nil
+			if
+				info ~= nil
+				and info.launching ~= true
+				and type(endsAt) == "number"
+				and endsAt > Workspace:GetServerTimeNow()
+			then
+				return untieAction
+			end
 			return nil
 		end
 		local root = ownRoot()
@@ -237,6 +254,8 @@ function MissionHud.start(hud: Hud.Refs): Api
 			igniteRemote:FireServer()
 		elseif action.kind == "tie" then
 			tieRemote:FireServer()
+		elseif action.kind == "untie" then
+			untieRemote:FireServer()
 		end
 	end
 
@@ -490,6 +509,7 @@ function MissionHud.start(hud: Hud.Refs): Api
 			end
 		end,
 		getContext = getContext,
+		isTied = isTiedNow,
 		activate = activate,
 	}
 end

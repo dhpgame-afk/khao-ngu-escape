@@ -1,7 +1,9 @@
 --!strict
 -- Settlement: คิดและจ่ายรางวัลตอนบั้งไฟขึ้น (ฝั่งเซิร์ฟเวอร์ล้วน — client ไม่มีส่วนตัดสิน) แล้วคืนข้อมูลหน้าสรุปผล
 -- กติกา (ตัวเลขทั้งหมดอยู่ Config.Rewards / Config.Rocket / Config.Snacks):
---   1) ไม่มีใครขึ้นบั้งไฟ → ภารกิจล้มเหลว ได้ 0 ทุกคน (เงินจากฆ่าลิงจ่ายสดไปแล้วระหว่างเล่น ไม่หัก ไม่จ่ายซ้ำ)
+--   1) ไม่มีใครขึ้นบั้งไฟ → ภารกิจล้มเหลว ได้ 0 ทุกคน (รวมเงินจากฆ่าลิงที่สะสมรอจ่าย = 0)
+--   1.1) เงินจากฆ่าลิง "จ่ายที่นี่ตอนจบภารกิจ" (Monkeys สะสมไว้ ไม่จ่ายสด) · ไม่โดนตัวคูณขาดถุงเงิน/ขนม
+--        คนถูกทิ้งโดน ×LeftBehindMultiplier ทั้งก้อน (รางวัลภารกิจ + เงินจากลิง) · คนออกก่อนจบ = ไม่ได้
 --   2) รางวัลเต็ม = MissionComplete × (ตัวคูณขาดของ) · ถุงเงินหรือขนมไม่ได้อยู่กับคนที่มัดตัวบนบั้งไฟ = ขาดของ
 --      ขาดอย่างใดอย่างหนึ่งหรือทั้งคู่ คูณ MissingItemsMultiplier ครั้งเดียว (ถ้า StackMissingItemPenalty = true คูณซ้อนต่อชิ้น)
 --   3) คนมัดตัวได้รางวัลเต็ม · คนถูกทิ้งได้ × LeftBehindMultiplier (0.95)
@@ -22,7 +24,8 @@ export type Row = {
 	name: string,
 	kills: number, -- ลิงที่ฆ่ารอบนี้
 	calls: number, -- เพื่อนที่โทรเรียกกลับรอบนี้
-	money: number, -- เงินที่ได้รอบนี้ทั้งหมด (ฆ่าลิง + รางวัลภารกิจ + เงินจากขนมส่วนเกิน)
+	money: number, -- เงินที่ได้รอบนี้ทั้งหมด (เงินจากลิง + รางวัลภารกิจ + เงินจากขนมส่วนเกิน)
+	killMoney: number, -- ส่วนของเงินจากฆ่าลิง (รวมอยู่ใน money แล้ว · โชว์แยกบรรทัดในหน้าสรุป)
 	snacks: number, -- ขนมที่ได้จากการแบ่งบนบั้งไฟ (ห่อ)
 	status: string, -- "Rocket" = ขึ้นบั้งไฟ · "Left" = ถูกทิ้ง
 }
@@ -42,6 +45,8 @@ export type Input = {
 	snackCount: number, -- ห่อที่เหลือในมือผู้ถือ
 	callsMade: (Player) -> number,
 }
+
+local PAYMENT_FAILED_MESSAGE = "รอบนี้ยังไม่ได้รับรางวัล"
 
 local Settlement = {}
 
@@ -63,7 +68,7 @@ end
 
 local function subtitleOf(success: boolean, moneyOnBoard: boolean, snackOnBoard: boolean): string
 	if not success then
-		return "ภารกิจล้มเหลว — ไม่มีใครขึ้นบั้งไฟ"
+		return "ภารกิจล้มเหลว — ไม่ได้รับเงินรางวัลและเงินจากลิง"
 	end
 	if moneyOnBoard and snackOnBoard then
 		return "ถุงเงินและขนมขึ้นบั้งไฟครบ — รับรางวัลเต็ม"
@@ -109,16 +114,39 @@ function Settlement.run(input: Input): Result
 	for _, player in input.participants do
 		if player.Parent == Players then
 			local boarded = input.tied[player] == true
-			local reward = if boarded then fullReward else leftBehindReward
 			local snacks = snackShare[player] or 0
-			local moneyEarned = Monkeys.getMissionKillMoney(player)
+			-- เงินจากลิงที่สะสมรอจ่าย: ภารกิจล้มเหลว = 0 · ไม่โดนตัวคูณขาดของ · คนถูกทิ้งคูณ LeftBehindMultiplier
+			local pendingKill = if success then Monkeys.getMissionKillMoney(player) else 0
+			local killPay = if boarded
+				then pendingKill
+				else roundMoney(pendingKill * Config.Rocket.LeftBehindMultiplier)
+			local reward = if boarded then fullReward else leftBehindReward
+			local moneyEarned = 0
 
-			if reward > 0 and PlayerData.addMoney(player, reward) then
-				moneyEarned += reward
+			-- จ่ายก้อนเดียว (รางวัลภารกิจ + เงินจากลิง) ครั้งเดียวต่อคน · เซฟไม่ได้ = ไม่ได้เงินและไม่โชว์ว่าได้
+			local payout = reward + killPay
+			local killShown = 0
+			local paymentFailed = false
+			if payout > 0 then
+				if PlayerData.addMoney(player, payout) then
+					moneyEarned += payout
+					killShown = killPay
+					Monkeys.clearMissionKillMoney(player)
+				else
+					paymentFailed = true
+				end
 			end
 			if snacks > 0 then
-				local _stored, overflowMoney = PlayerData.addSnacks(player, snacks)
+				local stored, overflowMoney = PlayerData.addSnacks(player, snacks)
 				moneyEarned += overflowMoney
+				if stored == 0 and overflowMoney == 0 then
+					paymentFailed = true -- addSnacks คืน 0,0 = เพิ่มไม่ได้ (ไม่ใช่ขนมเต็มเฉย ๆ เพราะส่วนเกินจะกลายเป็นเงิน)
+				end
+			end
+			if paymentFailed then
+				PlayerData.notifyPaymentFailed(player, PAYMENT_FAILED_MESSAGE) -- คนกำลังออกเกม PlayerData ข้ามให้เอง
+			elseif payout > 0 or snacks > 0 then
+				PlayerData.clearPaymentFailed(player) -- จ่ายสำเร็จรอบนี้ ล้างข้อความค้างจากรอบก่อน
 			end
 			if success and boarded then
 				PlayerData.addStat(player, "missionsCompleted", 1)
@@ -130,6 +158,7 @@ function Settlement.run(input: Input): Result
 				kills = Monkeys.getMissionKills(player),
 				calls = input.callsMade(player),
 				money = moneyEarned,
+				killMoney = killShown,
 				snacks = snacks,
 				status = if boarded then "Rocket" else "Left",
 			})
