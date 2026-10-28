@@ -322,7 +322,12 @@ local function updateMonkey(rec: MonkeyRec, players: { PlayerInfo }, now: number
 		if d < nearestAny then
 			nearestAny = d
 		end
-		if info.alive and d <= sight and d < targetDist and (info.pos - nest.position).Magnitude <= MC.LeashDistance then
+		if
+			info.alive
+			and d <= sight
+			and d < targetDist
+			and (info.pos - nest.position).Magnitude <= MC.LeashDistance
+		then
 			target = info
 			targetDist = d
 		end
@@ -429,14 +434,20 @@ local function loadNests()
 	nests = {}
 	local markers = Workspace:WaitForChild("MapMarkers", 10)
 	if markers == nil then
-		warn("[Monkeys] ไม่พบ workspace.MapMarkers — ยังไม่มีรังลิง (วาง Part ชื่อ Nest1..Nest4 ในโฟลเดอร์ MapMarkers)")
+		warn(
+			"[Monkeys] ไม่พบ workspace.MapMarkers — ยังไม่มีรังลิง (วาง Part ชื่อ Nest1..Nest4 ในโฟลเดอร์ MapMarkers)"
+		)
 		return
 	end
 	for i = 1, MC.NestCount do
 		local marker = markers:WaitForChild("Nest" .. i, 3)
 		local position = if marker ~= nil then readMarkerPosition(marker) else nil
 		if position == nil then
-			warn("[Monkeys] ไม่พบจุดรัง Nest" .. i .. " ใน MapMarkers — ข้ามรังนี้")
+			warn(
+				"[Monkeys] ไม่พบจุดรัง Nest"
+					.. i
+					.. " ใน MapMarkers — ข้ามรังนี้"
+			)
 		else
 			table.insert(nests, {
 				index = i,

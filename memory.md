@@ -24,6 +24,7 @@
 - กรอบแมพ: N 13.5717 · S 13.5701 · W 99.7711 · E 99.7736 (≈ 270 × 180 ม. ≈ 970 × 640 stud)
 - เจ้าของยังไม่เคยทำเกม — อธิบายเป็นขั้น ๆ และบอกปุ่มใน Studio ให้ชัด
 
+- Selene 0.32.0 ติดตั้งผ่าน Rokit แล้ว แต่ Windows บล็อกไม่ให้รัน ("Access is denied" แม้แต่ `--version`) — ห้ามแก้การตั้งค่าความปลอดภัยเอง ให้เจ้าของปลดบล็อกเองถ้าต้องการ · ระหว่างนี้ใช้ Window → Script Analysis ใน Studio จับตัวแปรไม่มีนิยามแทน · StyLua 2.6.0 ใช้ได้ปกติ
 - Rokit อยู่ที่ `%USERPROFILE%\.rokit\bin` (เพิ่มใน PATH ของผู้ใช้แล้ว — terminal ที่เปิดก่อนติดตั้งต้องเปิดใหม่) · เพิ่มเครื่องมือใหม่ต้อง `rokit trust <owner/repo>` ก่อน `rokit add` เพราะ add ถามยืนยันแบบโต้ตอบ
 - ปลั๊กอิน Rojo ติดตั้งด้วย `rojo plugin install` → `%LOCALAPPDATA%\Roblox\Plugins\RojoManagedPlugin.rbxm` · ต้องปิดเปิด Studio ใหม่ถึงจะเห็น
 

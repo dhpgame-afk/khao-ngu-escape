@@ -327,7 +327,10 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 		-- จำว่าอินพุตล่าสุดเป็นนิ้วหรือเมาส์ (ไว้เลือกว่าเล็งจากกลางจอหรือตำแหน่งเมาส์)
 		if input.UserInputType == Enum.UserInputType.Touch then
 			usingTouch = true
-		elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Keyboard then
+		elseif
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Keyboard
+		then
 			usingTouch = false
 		end
 		if processed then
@@ -475,7 +478,15 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 			lastLabelKey = labelKey
 			hud.setSlotLabels({ gunName, slotNames[2] .. " ×" .. combat.firecrackers, slotNames[3] }, combat.slot)
 		end
-		local ammoKey = combat.slot .. "|" .. combat.ammo .. "|" .. combat.magSize .. "|" .. combat.firecrackers .. "|" .. tostring(combat.reloadEndsAt ~= 0)
+		local ammoKey = combat.slot
+			.. "|"
+			.. combat.ammo
+			.. "|"
+			.. combat.magSize
+			.. "|"
+			.. combat.firecrackers
+			.. "|"
+			.. tostring(combat.reloadEndsAt ~= 0)
 		if ammoKey ~= lastAmmoKey then
 			lastAmmoKey = ammoKey
 			local ammoText: string

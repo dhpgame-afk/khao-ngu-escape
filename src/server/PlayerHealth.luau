@@ -91,7 +91,6 @@ function PlayerHealth.respawnAfterDeath(player: Player)
 	end
 end
 
-
 local function setDead(player: Player, info: Info)
 	if info.state == "Dead" then
 		return

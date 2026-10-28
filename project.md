@@ -121,7 +121,7 @@
   0. เจ้าของลองโค้ดชุด 2 ใน Studio: Play · Start Server 2 คน (ยิงเพื่อน/ล้ม/ชุบ) · Device Emulator มือถือ
   1. ~~นำ heightmap เข้า Studio~~ เสร็จแล้ว 2026-10-27 (ภูเขาขึ้นรูปแล้ว) · ต่อไป: ทาสีหน้าผา/ลานหิน · วางตำแหน่งกุฏิ รังลิง ฐานบั้งไฟ · กั้นขอบแมพ
   2. ~~ลองซิงก์ Rojo + Play~~ ผ่านแล้ว 2026-10-27 (experience ใหม่ของ gamjamxxx · Output: `Money = 0 Snacks = 0 Guns = BBPistol`) — เหลือ: เปิด Enable Studio Access to API Services แล้วลอง Play อีกรอบให้เซฟจริง
-  3. Selene + StyLua: เจ้าของอนุญาตแล้ว 2026-10-27 แต่หยุดก่อนติดตั้ง — รอบหน้า `rokit trust Kampfkarren/selene` + `JohnnyMorganz/StyLua` → `rokit add` → `selene src` / `stylua --check src`
+  3. Selene + StyLua ติดตั้งแล้ว 2026-10-28 · StyLua จัดรูปโค้ดแล้ว · **Selene ถูก Windows บล็อกไม่ให้รัน** → ใช้ Script Analysis ใน Studio แทน หรือเจ้าของปลดบล็อกเอง
   4. ~~สร้าง repo บน GitHub~~ เสร็จแล้ว: https://github.com/dhpgame-afk/khao-ngu-escape (private · ย้ายจาก Trr-ai-training เมื่อ 2026-10-27)
 - ติดปัญหา / รอตัดสินใจ:
   - ตัวเลขที่ "ยังไม่ระบุ" ใส่ค่าชั่วคราวใน Config แล้ว (เงินต่อลิง 5 · รางวัลภารกิจ 200 · ขาดของได้ ×0.5 · ฟื้นเลือด 2/วิ หลังไม่โดนตี 5 วิ · ลิงตีทุก 1.5 วิ · ยิง/วิ ปืนพก 3 ลูกซอง 1 ปืนกล 10 · แม็กลูกซอง 6 · วงประทัด 12 stud · ไม้กวด 0.6 วิ) — ให้เจ้าของปรับตอนทดสอบ

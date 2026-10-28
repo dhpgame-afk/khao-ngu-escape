@@ -145,7 +145,8 @@ function Hud.create(): Refs
 	hpText.ZIndex = 2
 
 	-- เงิน (บนขวา)
-	local moneyLabel = makeLabel(gui, "Money", "เงิน 0", UDim2.fromScale(0.70, 0.03), UDim2.fromScale(0.28, 0.06))
+	local moneyLabel =
+		makeLabel(gui, "Money", "เงิน 0", UDim2.fromScale(0.70, 0.03), UDim2.fromScale(0.28, 0.06))
 	moneyLabel.TextXAlignment = Enum.TextXAlignment.Right
 
 	-- จุดเล็งกลางจอ (มือถือไม่มีเมาส์)
@@ -309,7 +310,9 @@ function Hud.create(): Refs
 			cache.hp, cache.maxHp = hp, maxHp
 			local fraction = math.clamp(hp / math.max(maxHp, 1), 0, 1)
 			hpFill.Size = UDim2.fromScale(fraction, 1)
-			hpFill.BackgroundColor3 = if fraction > 0.4 then Color3.fromRGB(80, 200, 100) else Color3.fromRGB(220, 150, 40)
+			hpFill.BackgroundColor3 = if fraction > 0.4
+				then Color3.fromRGB(80, 200, 100)
+				else Color3.fromRGB(220, 150, 40)
 			hpText.Text = "เลือด " .. math.ceil(hp)
 		end,
 		setMoney = function(money: number)
@@ -397,7 +400,8 @@ function Hud.create(): Refs
 				overlay.Visible = true
 				overlay.BackgroundColor3 = Color3.fromRGB(150, 90, 30)
 				overlay.BackgroundTransparency = 0.6
-				overlayText.Text = "ล้มแล้ว — รอเพื่อนมาชุบ " .. formatTime(secondsLeft)
+				overlayText.Text = "ล้มแล้ว — รอเพื่อนมาชุบ "
+					.. formatTime(secondsLeft)
 			elseif kind == "Dead" then
 				overlay.Visible = true
 				overlay.BackgroundColor3 = Color3.fromRGB(10, 10, 15)

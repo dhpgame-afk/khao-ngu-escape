@@ -41,13 +41,19 @@ local function commonChecks(player: Player): Result?
 		return fail("กดเร็วเกินไป รอสักครู่นะ")
 	end
 	if PlayerData.get(player) == nil then
-		return fail("ข้อมูลของคุณยังโหลดไม่เสร็จ รอสักครู่นะ")
+		return fail(
+			"ข้อมูลของคุณยังโหลดไม่เสร็จ รอสักครู่นะ"
+		)
 	end
 	if not PlayerData.canTransact(player) then
-		return fail("ตอนนี้บันทึกข้อมูลไม่ได้ ยังซื้อหรือแลกไม่ได้")
+		return fail(
+			"ตอนนี้บันทึกข้อมูลไม่ได้ ยังซื้อหรือแลกไม่ได้"
+		)
 	end
 	if not isInLobby(player) then
-		return fail("ซื้อหรือแลกได้เฉพาะตอนอยู่ในห้องรอ")
+		return fail(
+			"ซื้อหรือแลกได้เฉพาะตอนอยู่ในห้องรอ"
+		)
 	end
 	return nil
 end

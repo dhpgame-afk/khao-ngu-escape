@@ -51,11 +51,16 @@ local STUDIO_UNSAVED: boolean = DataConfig.StudioAllowUnsaved and RunService:IsS
 -- Studio ไม่มี JobId จริง จึงสุ่มเอง เพื่อให้ล็อกใช้งานได้
 local JOB_ID: string = if game.JobId ~= "" then game.JobId else ("studio-" .. HttpService:GenerateGUID(false))
 
-local MSG_LOAD_FAILED = "โหลดข้อมูลของคุณไม่สำเร็จ เกมนี้จะไม่บันทึกความคืบหน้ารอบนี้ เงินและปืนเดิมของคุณปลอดภัย ลองออกแล้วเข้าใหม่นะ"
-local MSG_LOCKED = "ข้อมูลของคุณกำลังถูกใช้อยู่ในเซิร์ฟเวอร์อื่น เกมนี้จะไม่บันทึกความคืบหน้ารอบนี้ รอสักครู่แล้วเข้าใหม่นะ"
-local MSG_NEW_VERSION = "ข้อมูลของคุณมาจากเกมรุ่นที่ใหม่กว่า เกมนี้จะไม่บันทึกความคืบหน้ารอบนี้"
-local MSG_STUDIO_UNSAVED = "โหมดทดสอบใน Studio: เชื่อมที่เก็บข้อมูลไม่ได้ ข้อมูลรอบนี้จะไม่ถูกบันทึก"
-local MSG_LOST_LOCK = "ข้อมูลของคุณถูกเซิร์ฟเวอร์อื่นรับช่วงไปแล้ว เกมนี้จะหยุดบันทึกความคืบหน้ารอบนี้"
+local MSG_LOAD_FAILED =
+	"โหลดข้อมูลของคุณไม่สำเร็จ เกมนี้จะไม่บันทึกความคืบหน้ารอบนี้ เงินและปืนเดิมของคุณปลอดภัย ลองออกแล้วเข้าใหม่นะ"
+local MSG_LOCKED =
+	"ข้อมูลของคุณกำลังถูกใช้อยู่ในเซิร์ฟเวอร์อื่น เกมนี้จะไม่บันทึกความคืบหน้ารอบนี้ รอสักครู่แล้วเข้าใหม่นะ"
+local MSG_NEW_VERSION =
+	"ข้อมูลของคุณมาจากเกมรุ่นที่ใหม่กว่า เกมนี้จะไม่บันทึกความคืบหน้ารอบนี้"
+local MSG_STUDIO_UNSAVED =
+	"โหมดทดสอบใน Studio: เชื่อมที่เก็บข้อมูลไม่ได้ ข้อมูลรอบนี้จะไม่ถูกบันทึก"
+local MSG_LOST_LOCK =
+	"ข้อมูลของคุณถูกเซิร์ฟเวอร์อื่นรับช่วงไปแล้ว เกมนี้จะหยุดบันทึกความคืบหน้ารอบนี้"
 
 local function deepCopy(value: any): any
 	if type(value) ~= "table" then
@@ -291,7 +296,13 @@ local function doSave(session: Session, release: boolean): boolean
 			pushToOwner(session)
 			return false
 		end
-		warn("[PlayerData] เซฟไม่สำเร็จ ครั้งที่", attempt, "UserId", session.player.UserId, err)
+		warn(
+			"[PlayerData] เซฟไม่สำเร็จ ครั้งที่",
+			attempt,
+			"UserId",
+			session.player.UserId,
+			err
+		)
 		if attempt < DataConfig.SaveRetries then
 			task.wait(DataConfig.SaveRetryDelaySeconds)
 		end
@@ -314,7 +325,10 @@ local function saveSession(session: Session, release: boolean): boolean
 	local waitDeadline = os.clock() + DataConfig.SaveWaitTimeoutSeconds
 	while session.saving do
 		if os.clock() > waitDeadline then
-			warn("[PlayerData] รอเซฟที่ค้างอยู่เกินเวลา UserId", session.player.UserId)
+			warn(
+				"[PlayerData] รอเซฟที่ค้างอยู่เกินเวลา UserId",
+				session.player.UserId
+			)
 			return false
 		end
 		task.wait()
@@ -335,7 +349,10 @@ local function saveSession(session: Session, release: boolean): boolean
 		return false
 	end
 	if release and not result then
-		warn("[PlayerData] เซฟครั้งสุดท้ายไม่สำเร็จ ข้อมูลอาจสูญเสีย UserId", session.player.UserId)
+		warn(
+			"[PlayerData] เซฟครั้งสุดท้ายไม่สำเร็จ ข้อมูลอาจสูญเสีย UserId",
+			session.player.UserId
+		)
 	end
 	return result
 end
@@ -377,7 +394,13 @@ local function onPlayerAdded(player: Player)
 		else
 			session.message = MSG_LOAD_FAILED
 		end
-		warn("[PlayerData] ผู้เล่น", player.Name, "โหลดไม่สำเร็จ สถานะ:", status, "— ไม่เซฟรอบนี้")
+		warn(
+			"[PlayerData] ผู้เล่น",
+			player.Name,
+			"โหลดไม่สำเร็จ สถานะ:",
+			status,
+			"— ไม่เซฟรอบนี้"
+		)
 	end
 	session.loaded = true
 	pushToOwner(session)
