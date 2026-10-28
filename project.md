@@ -113,19 +113,19 @@
 ---
 
 ## Progress (อัปเดตทุก session)
-- อัปเดตล่าสุด: 2026-10-27
-- งานล่าสุดที่ทำเสร็จ: เก็บ requirement · ภาพจำลอง `mockups/wireframe.html` · สร้าง CLAUDE.md / project.md / memory.md / .claude/ · ติดตั้ง Rokit 1.2.0 + Rojo 7.7.1 (`rokit.toml`) + ปลั๊กอิน Rojo ใน Studio · heightmap เขางู `map-assets/khaongu-heightmap.png` (14–95 ม.) · สมุด `docs/map-log.md`
-- งานล่าสุด (เพิ่ม): โครง Rojo (`default.project.json`, `src/`) · `Config.luau` รวมตัวเลขเกม · ระบบเซฟ `PlayerData` (ล็อกกันเซิร์ฟเวอร์ซ้อน · โหมดทดสอบ Studio ไม่เซฟ) · ร้านปืน/แลกขนม `Shop` (เซิร์ฟเวอร์ตรวจ) · ผ่าน auditor + แก้แล้ว · rojo build ผ่าน · git init + commit ในเครื่อง (ยังไม่ขึ้น GitHub)
-- งานล่าสุด (ชุด 2): วางจุดสำคัญบนแมพด้วย `tools/place-markers.luau` (Workspace.MapMarkers: Kuti, Nest1–4, RocketPad) · โค้ด PlayerHealth (ล้ม/ชุบ/ตาย) · Combat (ปืน BB 3 แบบ ประทัด ไม้กวด) · HUD + ปุ่มมือถือ · ลิง (Monkeys.luau เดินวนรัง ไล่ตี เรียกพวก จมหาย) · ผ่าน auditor + แก้ครบ 10 ข้อ · rojo build ผ่าน · **ยังไม่ได้ลองเล่นใน Studio**
+- อัปเดตล่าสุด: 2026-10-28
+- งานล่าสุดที่ทำเสร็จ: เก็บ requirement · wireframe · โครง Rojo · Config · PlayerData (DataStore) · Shop · heightmap เขางูเข้า Studio แล้ว · จุด MapMarkers · ชุด 2 (เลือด/ล้ม/ชุบ · อาวุธ · HUD มือถือ · ลิง)
+- งานล่าสุด (2026-10-28):
+  - เจ้าของลองชุด 2 ใน Studio (Play เดี่ยว): ยิง/เปลี่ยนแม็ก/ประทัดใช้ได้ · แก้ HUD (ขอบปุ่มทับตัวหนังสือ · แถบเลือดโดนปุ่ม Roblox บัง) ผ่านแล้ว
+  - ไม้กวด: มีไม้ในมือ + ท่าฟาดแบบโค้ด — **แขนยังไม่ขยับชัด** เจ้าของบอกจะปรับรายละเอียดเอง (`Config.Broom`, ข้อความตรวจ `Config.Debug.BroomSwing`)
+  - ชุด 3 ห้องรอ + หนังสติ๊ก + สถานะภารกิจ: `Mission.luau` (Lobby→Launching→InMission · หัวห้อง · พร้อม x/N · นับ 3 วิ · ยิงโค้งไปจุดลง · ตะกร้าวางที่จุดลง) · `Lobby.luau` (สร้างลานลอยฟ้า+หนังสติ๊กด้วยโค้ดถ้ายังไม่มี `Workspace.Lobby`) · `LobbyUi.luau` (ร้าน/แลกขนม/แผนที่เลือกจุดลง/ปุ่มพร้อม) · `Shop.isInLobby` ผูกกับ Mission แล้ว · `Combat.setLocked` กันยิงในห้องรอ · ผ่าน auditor + แก้ครบ · Selene รันได้แล้ว (0 error) · **ยังไม่ได้ลองใน Studio**
 - งานต่อไป:
-  0. เจ้าของลองโค้ดชุด 2 ใน Studio: Play · Start Server 2 คน (ยิงเพื่อน/ล้ม/ชุบ) · Device Emulator มือถือ
-  1. ~~นำ heightmap เข้า Studio~~ เสร็จแล้ว 2026-10-27 (ภูเขาขึ้นรูปแล้ว) · ต่อไป: ทาสีหน้าผา/ลานหิน · วางตำแหน่งกุฏิ รังลิง ฐานบั้งไฟ · กั้นขอบแมพ
-  2. ~~ลองซิงก์ Rojo + Play~~ ผ่านแล้ว 2026-10-27 (experience ใหม่ของ gamjamxxx · Output: `Money = 0 Snacks = 0 Guns = BBPistol`) — เหลือ: เปิด Enable Studio Access to API Services แล้วลอง Play อีกรอบให้เซฟจริง
-  3. Selene + StyLua ติดตั้งแล้ว 2026-10-28 · StyLua จัดรูปโค้ดแล้ว · **Selene ถูก Windows บล็อกไม่ให้รัน** → ใช้ Script Analysis ใน Studio แทน หรือเจ้าของปลดบล็อกเอง
-  4. ~~สร้าง repo บน GitHub~~ เสร็จแล้ว: https://github.com/dhpgame-afk/khao-ngu-escape (private · ย้ายจาก Trr-ai-training เมื่อ 2026-10-27)
+  0. เจ้าของลองชุด 3 ใน Studio: Play เดี่ยว (ห้องรอ → พร้อม → บิน → ลง) · Start Server 2 คน (หัวห้อง/พร้อม 2/2/บินพร้อมกัน) · Device Emulator · ลองเปิด StreamingEnabled
+  1. ชุด 4 ภารกิจ: หยิบ/ถือ/วางตะกร้า (ยิงไม่เล็ง ห้ามเปลี่ยนแม็ก) · ตะกร้าบินไปพร้อมทีม · ถวายพระที่กุฏิ → ถุงเงิน + ขนม 4 ห่อ · กินขนม +250 HP ชั่วคราว 10 วิ · ปุ่มตามสถานการณ์
+  2. ชุด 5 กลับเข้าแมพหลังตาย: โทรเรียก 5 วิ · หนังสติ๊ก 40 วิ ลากเล็ง (แทน `PlayerHealth.respawnAfterDeath` และจุดเกิดชั่วคราวใน Mission)
+  3. ชุด 6 บั้งไฟ 60 วิ · มัดตัว · คนถูกทิ้ง −5% · หน้าสรุป · เรียก `Mission.endMission()`
+  4. แมพ: ทาสีหน้าผา/ลานหิน · กั้นขอบแมพ · สำรอง map-01-markers · ลองเซฟจริง (API Services)
 - ติดปัญหา / รอตัดสินใจ:
   - ตัวเลขที่ "ยังไม่ระบุ" ใส่ค่าชั่วคราวใน Config แล้ว (เงินต่อลิง 5 · รางวัลภารกิจ 200 · ขาดของได้ ×0.5 · ฟื้นเลือด 2/วิ หลังไม่โดนตี 5 วิ · ลิงตีทุก 1.5 วิ · ยิง/วิ ปืนพก 3 ลูกซอง 1 ปืนกล 10 · แม็กลูกซอง 6 · วงประทัด 12 stud · ไม้กวด 0.6 วิ) — ให้เจ้าของปรับตอนทดสอบ
-  - `Shop.isInLobby` ยังคืน true เสมอ — ต้องผูกกับระบบห้องรอ/ภารกิจก่อนเปิดภารกิจ ไม่งั้นซื้อ/แลกกลางภารกิจได้
-  - ยังไม่ได้ lint (ทดสอบ Play ใน Studio ผ่านแล้วแบบไม่เซฟ)
-  - ประทัดเติมครั้งเดียวต่อการเข้าเซิร์ฟเวอร์ จนกว่าระบบภารกิจจะเรียก `Combat.refillFirecrackers`
-  - ต้นกระสุนอ่านจากหัวตัวละครที่ client คุมฟิสิกส์ — ควรเสนอ security-auditor ก่อน Publish
+  - ภารกิจยังจบไม่ได้ (ยกเว้นทุกคนออก) — คนเข้ากลางภารกิจรอในห้องรอจนกว่าชุดบั้งไฟเสร็จ
+  - ก่อน Publish: ปิด `Config.Debug.BroomSwing` · เสนอ security-auditor (ต้นกระสุนจากหัวตัวละคร · ร้าน/เงิน · remote ห้องรอ)

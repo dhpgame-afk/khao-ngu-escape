@@ -90,6 +90,86 @@ local Config = {
 		SinkDepth = 5, -- จมลงกี่ stud
 	},
 
+	-- ขอบเขตแมพ (ศูนย์กลาง (0,0) · เหนือ = -Z · ตะวันออก = +X) ≈ 970 × 640 stud
+	Map = {
+		HalfWidthStuds = 485, -- ครึ่งความกว้าง (ตะวันออก–ตะวันตก)
+		HalfDepthStuds = 320, -- ครึ่งความลึก (เหนือ–ใต้)
+		LandingMarginStuds = 40, -- จุดลงต้องห่างขอบแมพอย่างน้อยเท่านี้ (ไม่ให้ลงติดขอบ/นอกแมพ)
+		-- ชื่อจุดสำคัญใน Workspace.MapMarkers (Kuti = กุฏิ · Nest1–4 = รังลิง · RocketPad = ฐานบั้งไฟ)
+		MarkerNames = { "Kuti", "Nest1", "Nest2", "Nest3", "Nest4", "RocketPad" },
+	},
+
+	-- ห้องรอ: แท่นลอยฟ้านอกแมพ + หนังสติ๊กยักษ์ (เซิร์ฟเวอร์สร้างเองถ้าไม่มี Workspace.Lobby)
+	-- ถ้าเจ้าของทำห้องรอเองแล้วตั้งชื่อ Workspace.Lobby ระบบจะใช้ของเจ้าของ — ต้องมี Part ชื่อ
+	-- "LobbySpawn" (จุดเกิด) และ "SlingshotPouch" (ถุงหนังสติ๊กที่ผู้เล่นยืนก่อนถูกยิง)
+	Lobby = {
+		Center = Vector3.new(0, 250, -700), -- กึ่งกลางแท่น (อยู่เหนือขอบแมพด้านเหนือ ที่ z = -320)
+		FloorSize = Vector3.new(80, 2, 60),
+		FloorColor = Color3.fromRGB(120, 130, 120),
+		RailHeight = 14, -- สูงกว่าความสูงกระโดดปกติ (7.2) เพื่อกันกระโดดข้าม
+		RailThickness = 1,
+		RailTransparency = 0.5,
+		RailColor = Color3.fromRGB(230, 200, 120),
+		SpawnPadSize = Vector3.new(30, 1, 20),
+		SpawnPadOffset = Vector3.new(0, 0, -8), -- จากกึ่งกลางแท่น
+		SpawnPadColor = Color3.fromRGB(90, 170, 110),
+		SpawnPadEdgeMargin = 3, -- ตอนสุ่มจุดเกิด ห่างขอบแผ่นเกิดอย่างน้อยเท่านี้
+		StandHeight = 3.5, -- ความสูงของ HumanoidRootPart เหนือพื้นที่ยืน (ให้เท้าแตะพื้นพอดี)
+
+		-- หนังสติ๊ก: ฐาน + เสา 2 ต้น + แถบยาง + ถุง (ประกอบจาก Part ล้วน ไม่ใช้ asset) ยิงไปทางใต้ (+Z)
+		SlingshotOffset = Vector3.new(0, 0, 52), -- จากกึ่งกลางแท่นห้องรอ (ห่างกัน 10 stud กันเดินข้าม)
+		SlingshotBaseSize = Vector3.new(40, 2, 24),
+		SlingshotBaseColor = Color3.fromRGB(110, 90, 70),
+		SlingshotPostSpacing = 24, -- ระยะห่างระหว่างเสา 2 ต้น
+		SlingshotPostSize = Vector3.new(2, 18, 2),
+		SlingshotPostZ = 4, -- เสาอยู่ล้ำไปทางใต้ของกึ่งกลางฐานเท่านี้
+		SlingshotPostColor = Color3.fromRGB(139, 94, 52),
+		SlingshotPouchOffset = Vector3.new(0, 8, -8), -- ถุงอยู่เหนือผิวฐาน และถอยไปทางเหนือ (ดึงยางไปข้างหลัง)
+		SlingshotPouchSize = Vector3.new(14, 1, 6),
+		SlingshotPouchColor = Color3.fromRGB(170, 120, 70),
+		SlingshotBandThickness = 1,
+		SlingshotBandColor = Color3.fromRGB(200, 60, 60),
+
+		-- ผู้เล่นตกจากแท่น/หลุดออกนอกแท่น → เทเลพอร์ตกลับจุดเกิด
+		BoundsCheckSeconds = 0.5,
+		OutsideMarginStuds = 4, -- เลยขอบห้องรอไปเท่านี้ถือว่าหลุด
+		FallResetBelowStuds = 15, -- ต่ำกว่าฐานห้องรอเท่านี้ถือว่าตก
+
+		-- แผนที่ในหน้าจอห้องรอ: แบ่งเป็นช่องกริดให้หัวห้องแตะ (ไม่ต้องคำนวณพิกัดนิ้ว จึงไม่พลาดบนมือถือ)
+		MapGridCols = 24,
+		MapGridRows = 16,
+	},
+
+	-- ภารกิจ: หัวห้อง / พร้อม / นับถอยหลัง / จุดลง
+	Mission = {
+		MinPlayers = 1, -- ขั้นต่ำที่เริ่มได้ (สูงสุด = Config.MaxPlayers)
+		ReadyCountdownSeconds = 3, -- ทุกคนพร้อมแล้วรอกี่วิก่อนยิง
+		DefaultLandingOffset = Vector3.new(0, 0, 60), -- จุดลงเริ่มต้น = กุฏิ + ทางใต้ 60 stud (+Z = ใต้)
+		ReadyMinIntervalSeconds = 0.3, -- จำกัดความถี่คำขอกดพร้อม
+		LandingMinIntervalSeconds = 0.2, -- จำกัดความถี่คำขอเลือกจุดลง
+		StateRequestMinIntervalSeconds = 0.5, -- จำกัดความถี่ที่ client ขอสถานะห้องรอ
+		MarkerWaitSeconds = 10, -- รอ Workspace.MapMarkers ได้นานสุดเท่านี้ตอนเริ่มเซิร์ฟเวอร์
+		ObjectsFolderName = "MissionObjects", -- โฟลเดอร์ใน Workspace เก็บของภารกิจ (ตะกร้า ฯลฯ) · ล้างตอนจบภารกิจ
+		RespawnScatterStuds = 6, -- (ชั่วคราว) ตายแล้วเกิดใหม่กลางภารกิจ → เกิดสุ่มรอบจุดลงในรัศมีนี้
+	},
+
+	-- หนังสติ๊กยิงผู้เล่นเข้าแมพ
+	Launch = {
+		PrepSeconds = 1.0, -- ย้ายเข้าถุงแล้วรอก่อนปล่อยกี่วิ
+		StreamTimeoutSeconds = 6, -- ระหว่างรอ ขอให้ client โหลดแมพรอบจุดลงล่วงหน้า (StreamingEnabled) รอนานสุดเท่านี้
+		WatchdogExtraSeconds = 5, -- ถ้าผ่านเวลา (Prep + Stream + Flight) ไปอีกเท่านี้แล้วยังค้างที่ Launching → ยกเลิกภารกิจ
+		FlightSeconds = 2.5, -- เวลาบิน (2–3 วิ)
+		ArcPeakHeight = 140, -- ความสูงของวงโค้งเหนือเส้นตรงจากถุงถึงจุดลง (stud)
+		SpreadStuds = 4, -- ผู้เล่นแต่ละคนห่างกัน (ตอนอยู่ในถุงและตอนลงพื้น)
+		RaycastStartHeight = 1500, -- ยิงเรย์ลงหาพื้นจากความสูงนี้
+		RaycastLength = 3000,
+		FallbackGroundY = 50, -- ถ้าเรย์ไม่โดนพื้น (ไม่น่าเกิด) ใช้ความสูงนี้
+		LandingRootHeight = 3.5, -- วาง HumanoidRootPart สูงจากพื้นเท่านี้ตอนลง
+		BasketOffset = Vector3.new(0, 0, 10), -- ตะกร้าอาหารอยู่ห่างจากจุดลงไปทางใต้เท่านี้
+		BasketSize = Vector3.new(3, 2, 3),
+		BasketColor = Color3.fromRGB(176, 124, 66),
+	},
+
 	Guns = Guns,
 	DefaultGunId = "BBPistol",
 

@@ -49,6 +49,7 @@ local loadouts: { [Player]: Loadout } = {}
 local stateEvent: RemoteEvent? = nil
 local fxEvent: RemoteEvent? = nil
 local firecrackersLeft: { [Player]: number } = {} -- ประทัดที่เหลือต่อผู้เล่น (ต่อเซิร์ฟเวอร์ ไม่เซฟ) เกิดใหม่ไม่เติมคืน
+local weaponsLocked: { [Player]: boolean } = {} -- ล็อกอาวุธ (ตอนอยู่ห้องรอ/ถูกยิงหนังสติ๊ก) · Mission เป็นคนตั้ง
 
 -- ===== ตัวช่วยตรวจค่าจาก client =====
 
@@ -151,6 +152,9 @@ local function cancelReload(loadout: Loadout)
 end
 
 local function canAct(player: Player): Loadout?
+	if weaponsLocked[player] then
+		return nil -- ห้องรอ/กำลังบินจากหนังสติ๊ก: ยิง ขว้าง ฟาด เปลี่ยนแม็กไม่ได้
+	end
 	local loadout = loadouts[player]
 	if loadout == nil or loadout.character ~= player.Character then
 		return nil
@@ -696,7 +700,20 @@ function Combat.setCarrying(player: Player, carrying: boolean)
 	pushState(player, loadout)
 end
 
--- ระบบภารกิจเรียกตอนเริ่มภารกิจ: เติมประทัดให้ครบ (TODO: ผูกกับระบบภารกิจชุดถัดไป)
+-- ล็อก/ปลดล็อกอาวุธของผู้เล่น (Mission เรียก: ห้องรอ = ล็อก · ลงพื้นในแมพแล้ว = ปลด)
+function Combat.setLocked(player: Player, locked: boolean)
+	weaponsLocked[player] = if locked then true else nil
+end
+
+-- ส่งสถานะอาวุธ (ปืนที่ถืออยู่ ฯลฯ) ให้เจ้าตัวอีกครั้ง — ให้ client ที่เพิ่งต่อสายได้ค่าล่าสุด (Mission เรียกตอนตอบ GetMissionState)
+function Combat.resendState(player: Player)
+	local loadout = loadouts[player]
+	if loadout ~= nil then
+		pushState(player, loadout)
+	end
+end
+
+-- ระบบภารกิจเรียกตอนเริ่มภารกิจ: เติมประทัดให้ครบ (Mission.luau เรียกตอนยิงหนังสติ๊ก)
 function Combat.refillFirecrackers(player: Player)
 	firecrackersLeft[player] = Config.Firecracker.PerPlayer
 	local loadout = loadouts[player]
@@ -724,6 +741,7 @@ function Combat.init()
 	Players.PlayerRemoving:Connect(function(player: Player)
 		loadouts[player] = nil
 		firecrackersLeft[player] = nil
+		weaponsLocked[player] = nil
 	end)
 end
 

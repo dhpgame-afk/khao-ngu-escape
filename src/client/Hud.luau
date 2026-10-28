@@ -25,6 +25,7 @@ export type Refs = {
 	setProgress: (fraction: number?, text: string) -> (),
 	setOverlay: (kind: string, secondsLeft: number) -> (),
 	setDownedHealth: (fraction: number?) -> (),
+	setCombatVisible: (visible: boolean) -> (), -- ซ่อน/แสดง HUD ขณะเล่นทั้งหมด (ห้องรอซ่อน)
 }
 
 local FONT = Enum.Font.GothamBold
@@ -297,6 +298,19 @@ function Hud.create(): Refs
 	dfCorner.CornerRadius = UDim.new(0.4, 0)
 	dfCorner.Parent = downedFill
 
+	-- รวมทุกชิ้นของ HUD ขณะเล่นไว้ใน combatRoot เดียว เพื่อซ่อนทั้งชุดตอนอยู่ห้องรอได้ด้วยการสลับ Visible ที่เดียว
+	-- (Controls ยังสลับ Visible ของแต่ละชิ้นเองได้ตามเดิม ไม่ชนกัน)
+	local combatRoot = Instance.new("Frame")
+	combatRoot.Name = "CombatRoot"
+	combatRoot.Size = UDim2.fromScale(1, 1)
+	combatRoot.BackgroundTransparency = 1
+	combatRoot.BorderSizePixel = 0
+	combatRoot.Active = false
+	for _, child in gui:GetChildren() do
+		child.Parent = combatRoot
+	end
+	combatRoot.Parent = gui
+
 	-- ===== ฟังก์ชันอัปเดต (cache ค่าเดิม เขียน property เฉพาะเมื่อเปลี่ยน) =====
 	local cache: { [string]: any } = {}
 	local refs: Refs = {
@@ -394,6 +408,9 @@ function Hud.create(): Refs
 			end
 			downedBack.Visible = true
 			downedFill.Size = UDim2.fromScale(math.clamp(fraction, 0, 1), 1)
+		end,
+		setCombatVisible = function(visible: boolean)
+			combatRoot.Visible = visible
 		end,
 		setOverlay = function(kind: string, secondsLeft: number)
 			local key = kind .. ":" .. math.max(0, math.ceil(secondsLeft))

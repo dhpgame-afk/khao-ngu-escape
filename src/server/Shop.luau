@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local PlayerData = require(script.Parent.PlayerData)
 local Remotes = require(script.Parent.Remotes)
+local Mission = require(script.Parent.Mission)
 
 export type Result = { ok: boolean, message: string }
 
@@ -18,10 +19,9 @@ local function fail(message: string): Result
 	return { ok = false, message = message }
 end
 
--- TODO(ยังไม่ระบุ): ระบบห้องรอ/ภารกิจยังไม่มี — ตอนนี้ถือว่าอยู่ห้องรอเสมอ
--- เมื่อมีระบบภารกิจ ให้คืน false ขณะผู้เล่นอยู่ในภารกิจ เพื่อห้ามซื้อ/แลกกลางภารกิจ
-local function isInLobby(_player: Player): boolean
-	return true
+-- ซื้อ/แลกได้เฉพาะตอนภารกิจอยู่ในช่วงห้องรอ และผู้เล่นคนนี้อยู่ในห้องรอ (Mission ตัดสิน)
+local function isInLobby(player: Player): boolean
+	return Mission.isInLobby(player)
 end
 
 -- จำกัดความถี่ต่อผู้เล่น (ค่าอยู่ใน Config.Shop)
