@@ -1,7 +1,9 @@
 --!strict
 -- Controls: ต่อปุ่มบนจอ/คีย์บอร์ด/เมาส์ เข้ากับคำขอไปเซิร์ฟเวอร์ + อัปเดต HUD ทุกเฟรม
 -- client ส่งแค่ "ทิศที่เล็ง" กับคำขอ — เซิร์ฟเวอร์ตัดสินว่าโดนไหม/กระสุนพอไหม/ชุบได้ไหม
--- ปุ่มบนจอ = ทางหลัก (มือถือ) · คีย์บอร์ด: คลิกซ้ายยิง · คลิกขวาเล็ง · R เปลี่ยนแม็ก · 1/2/3 สลับช่อง · G ขว้างประทัด · E กดค้างชุบ
+-- ปุ่มบนจอ = ทางหลัก (มือถือ) · คีย์บอร์ด: คลิกซ้ายยิง · คลิกขวาเล็ง · R เปลี่ยนแม็ก · 1/2/3 สลับช่อง · G ขว้างประทัด
+--   E = ปุ่มตามสถานการณ์ (กดค้างชุบ / ถวายอาหาร / หยิบของ) · F กินขนม · Q วางของ (สองปุ่มหลังอยู่ใน MissionHud)
+-- ปุ่มตามสถานการณ์ (hud.context) มีปุ่มเดียว เลือกทีละอย่างตามลำดับ: ชุบเพื่อน > ถวายอาหาร > หยิบของ
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -14,6 +16,7 @@ local Workspace = game:GetService("Workspace")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Hud = require(script.Parent.Hud)
 local Fx = require(script.Parent.Fx)
+local MissionHud = require(script.Parent.MissionHud)
 
 local SLOT_GUN = 1
 local SLOT_FIRECRACKER = 2
@@ -32,7 +35,7 @@ type CombatState = {
 
 local Controls = {}
 
-function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
+function Controls.start(hud: Hud.Refs, missionHud: MissionHud.Api): { onData: (payload: any) -> () }
 	local player = Players.LocalPlayer
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local fireRemote = remotes:WaitForChild("CombatFire") :: RemoteEvent
@@ -60,6 +63,9 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 	local aiming = false
 	local reviveHeld = false
 	local activeReviveTarget: number? = nil
+	-- ปุ่มตามสถานการณ์ตอนนี้เป็นอะไร (อัปเดตทุกเฟรมใน RenderStepped): ชุบเพื่อน หรือ action อื่น (ถวาย/หยิบ)
+	local contextIsRevive = false
+	local contextOther: MissionHud.ContextAction? = nil
 	local lastPrimaryClock = 0
 	local usingTouch = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 
@@ -316,9 +322,15 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 	end)
 	hud.reload.Activated:Connect(requestReload)
 	hud.throw.Activated:Connect(throwFirecracker)
-	Hud.bindHold(hud.context, function()
-		reviveHeld = true
-	end, function()
+	-- กดปุ่มตามสถานการณ์: ชุบ = กดค้าง · ถวาย/หยิบ = กดครั้งเดียว (ส่งเจตนาให้เซิร์ฟเวอร์ตรวจ)
+	local function contextPressed()
+		if contextIsRevive then
+			reviveHeld = true
+		elseif contextOther ~= nil then
+			missionHud.activate(contextOther)
+		end
+	end
+	Hud.bindHold(hud.context, contextPressed, function()
 		reviveHeld = false
 	end)
 	for i, button in hud.slots do
@@ -362,7 +374,7 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 			elseif key == Enum.KeyCode.G then
 				throwFirecracker()
 			elseif key == Enum.KeyCode.E then
-				reviveHeld = true
+				contextPressed()
 			end
 		end
 	end)
@@ -449,7 +461,6 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 	local lastAmmoKey = ""
 	local lastThrowEnabled: boolean? = nil
 	local lastCrosshair: boolean? = nil
-	local lastContext: boolean? = nil
 	local lastProgress: number? = nil
 	local lastProgressText = ""
 
@@ -534,12 +545,16 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 			hud.crosshair.Visible = crosshairVisible
 		end
 
-		-- ปุ่มชุบ (โผล่เมื่ออยู่ใกล้เพื่อนที่ล้ม)
+		-- ปุ่มตามสถานการณ์ (ปุ่มเดียว): ชุบเพื่อนที่ล้มอยู่ใกล้ ๆ ก่อน · ไม่มี → ถวายอาหาร/หยิบของ (MissionHud ตัดสิน)
 		local target = if stateName == "Alive" then findReviveTarget() else nil
-		local contextVisible = target ~= nil
-		if contextVisible ~= lastContext then
-			lastContext = contextVisible
-			hud.setContext(contextVisible, "กดค้างเพื่อชุบ")
+		contextIsRevive = target ~= nil
+		contextOther = if target == nil and stateName == "Alive" then missionHud.getContext() else nil
+		if contextIsRevive then
+			hud.setContext(true, "กดค้างเพื่อชุบ")
+		elseif contextOther ~= nil then
+			hud.setContext(true, contextOther.text)
+		else
+			hud.setContext(false, "")
 		end
 		if reviveHeld and target ~= nil then
 			if activeReviveTarget ~= target.UserId then

@@ -13,6 +13,8 @@ export type Refs = {
 	reload: TextButton,
 	throw: TextButton,
 	context: TextButton,
+	eat: TextButton, -- กินขนม (โผล่เฉพาะช่วงภารกิจเมื่อมีขนม)
+	drop: TextButton, -- วางของที่ถืออยู่ (โผล่เมื่อถือของ)
 	slots: { TextButton },
 	crosshair: Frame,
 	setHealth: (hp: number, maxHp: number) -> (),
@@ -25,6 +27,11 @@ export type Refs = {
 	setProgress: (fraction: number?, text: string) -> (),
 	setOverlay: (kind: string, secondsLeft: number) -> (),
 	setDownedHealth: (fraction: number?) -> (),
+	setTempHealth: (temp: number, maxTemp: number) -> (), -- เลือดชั่วคราวจากขนม (0 = ซ่อน)
+	setEat: (visible: boolean, text: string) -> (),
+	setDrop: (visible: boolean) -> (),
+	setObjective: (text: string?) -> (), -- เป้าหมายภารกิจ (nil = ซ่อน)
+	showBanner: (text: string, seconds: number) -> (), -- ข้อความใหญ่กลางจอชั่วคราว
 	setCombatVisible: (visible: boolean) -> (), -- ซ่อน/แสดง HUD ขณะเล่นทั้งหมด (ห้องรอซ่อน)
 }
 
@@ -149,6 +156,54 @@ function Hud.create(): Refs
 	local hpText = makeLabel(hpBack, "Text", "เลือด 100", UDim2.fromScale(0, 0), UDim2.fromScale(1, 1))
 	hpText.ZIndex = 2
 
+	-- แถบเลือดชั่วคราว (ใต้แถบเลือด · สีฟ้า) · โผล่เฉพาะตอนกินขนมแล้ว
+	local tempBack = Instance.new("Frame")
+	tempBack.Name = "TempHealthBar"
+	tempBack.Position = UDim2.fromScale(0.02, TOP_ROW_Y + 0.065)
+	tempBack.Size = UDim2.fromScale(0.28, 0.025)
+	tempBack.BackgroundColor3 = DARK
+	tempBack.BackgroundTransparency = 0.3
+	tempBack.BorderSizePixel = 0
+	tempBack.Visible = false
+	tempBack.Parent = gui
+	local tempBackCorner = Instance.new("UICorner")
+	tempBackCorner.CornerRadius = UDim.new(0.4, 0)
+	tempBackCorner.Parent = tempBack
+	local tempFill = Instance.new("Frame")
+	tempFill.Name = "Fill"
+	tempFill.Size = UDim2.fromScale(1, 1)
+	tempFill.BackgroundColor3 = Color3.fromRGB(80, 170, 255)
+	tempFill.BorderSizePixel = 0
+	tempFill.Parent = tempBack
+	local tempFillCorner = Instance.new("UICorner")
+	tempFillCorner.CornerRadius = UDim.new(0.4, 0)
+	tempFillCorner.Parent = tempFill
+
+	-- เป้าหมายภารกิจ (บนกลาง · ระหว่างแถบเลือดกับเงิน)
+	local objectiveLabel =
+		makeLabel(gui, "Objective", "", UDim2.fromScale(0.33, TOP_ROW_Y), UDim2.fromScale(0.34, 0.10))
+	objectiveLabel.TextWrapped = true
+	objectiveLabel.TextColor3 = Color3.fromRGB(255, 235, 150)
+	objectiveLabel.Visible = false
+
+	-- ข้อความใหญ่กลางจอ (พระให้ของ ฯลฯ)
+	local bannerBack = Instance.new("Frame")
+	bannerBack.Name = "Banner"
+	bannerBack.Position = UDim2.fromScale(0.15, 0.15) -- ใต้แถบบนสุดของ Roblox (0.13) · สูงไม่ถึงปุ่มขว้างประทัด
+	bannerBack.Size = UDim2.fromScale(0.70, 0.09)
+	bannerBack.BackgroundColor3 = DARK
+	bannerBack.BackgroundTransparency = 0.25
+	bannerBack.BorderSizePixel = 0
+	bannerBack.Visible = false
+	bannerBack.ZIndex = 5
+	bannerBack.Parent = gui
+	local bannerCorner = Instance.new("UICorner")
+	bannerCorner.CornerRadius = UDim.new(0.2, 0)
+	bannerCorner.Parent = bannerBack
+	local bannerText = makeLabel(bannerBack, "Text", "", UDim2.fromScale(0.03, 0.1), UDim2.fromScale(0.94, 0.8))
+	bannerText.TextColor3 = Color3.fromRGB(255, 235, 150)
+	bannerText.ZIndex = 6
+
 	-- เงิน (บนขวา)
 	local moneyLabel =
 		makeLabel(gui, "Money", "เงิน 0", UDim2.fromScale(0.70, TOP_ROW_Y), UDim2.fromScale(0.28, 0.06))
@@ -182,6 +237,13 @@ function Hud.create(): Refs
 	local context = makeButton(gui, "Context", "", Vector2.new(0.92, 0.40), 0.17, true)
 	context.BackgroundColor3 = Color3.fromRGB(230, 160, 40)
 	context.Visible = false
+	-- กินขนม (ใต้ป้ายเงิน ขวาบน) · วางของ (ใต้ปุ่มตามสถานการณ์) — ขนาดเล็กลง ไม่ชนปุ่มกระโดดของ Roblox (มุมขวาล่าง)
+	local eat = makeButton(gui, "Eat", "กินขนม", Vector2.new(0.92, 0.25), 0.12, true)
+	eat.BackgroundColor3 = Color3.fromRGB(60, 140, 210)
+	eat.Visible = false
+	local drop = makeButton(gui, "Drop", "วางของ", Vector2.new(0.92, 0.56), 0.13, true)
+	drop.BackgroundColor3 = Color3.fromRGB(110, 110, 120)
+	drop.Visible = false
 
 	-- แถบเลือกอาวุธ (ล่างกลาง-ซ้าย)
 	local slotBar = Instance.new("Frame")
@@ -313,6 +375,13 @@ function Hud.create(): Refs
 
 	-- ===== ฟังก์ชันอัปเดต (cache ค่าเดิม เขียน property เฉพาะเมื่อเปลี่ยน) =====
 	local cache: { [string]: any } = {}
+	local bannerToken = 0
+	-- ข้อความแถบเลือด: "เลือด 100" หรือ "เลือด 100 +250" เมื่อมีเลือดชั่วคราว
+	local function refreshHealthText()
+		local hp: number = cache.hp or 0
+		local temp: number = cache.temp or 0
+		hpText.Text = "เลือด " .. math.ceil(hp) .. (if temp > 0 then " +" .. math.ceil(temp) else "")
+	end
 	local refs: Refs = {
 		gui = gui,
 		fire = fire,
@@ -320,6 +389,8 @@ function Hud.create(): Refs
 		reload = reload,
 		throw = throw,
 		context = context,
+		eat = eat,
+		drop = drop,
 		slots = slots,
 		crosshair = crosshair,
 		setHealth = function(hp: number, maxHp: number)
@@ -332,7 +403,7 @@ function Hud.create(): Refs
 			hpFill.BackgroundColor3 = if fraction > 0.4
 				then Color3.fromRGB(80, 200, 100)
 				else Color3.fromRGB(220, 150, 40)
-			hpText.Text = "เลือด " .. math.ceil(hp)
+			refreshHealthText()
 		end,
 		setMoney = function(money: number)
 			if money == cache.money then
@@ -408,6 +479,49 @@ function Hud.create(): Refs
 			end
 			downedBack.Visible = true
 			downedFill.Size = UDim2.fromScale(math.clamp(fraction, 0, 1), 1)
+		end,
+		setTempHealth = function(temp: number, maxTemp: number)
+			if temp == cache.temp and maxTemp == cache.maxTemp then
+				return
+			end
+			cache.temp, cache.maxTemp = temp, maxTemp
+			tempBack.Visible = temp > 0
+			tempFill.Size = UDim2.fromScale(math.clamp(temp / math.max(maxTemp, 1), 0, 1), 1)
+			refreshHealthText()
+		end,
+		setEat = function(visible: boolean, text: string)
+			if visible == cache.eatVisible and text == cache.eatText then
+				return
+			end
+			cache.eatVisible, cache.eatText = visible, text
+			eat.Visible = visible
+			eat.Text = text
+		end,
+		setDrop = function(visible: boolean)
+			if visible == cache.dropVisible then
+				return
+			end
+			cache.dropVisible = visible
+			drop.Visible = visible
+		end,
+		setObjective = function(text: string?)
+			if text == cache.objective then
+				return
+			end
+			cache.objective = text
+			objectiveLabel.Visible = text ~= nil
+			objectiveLabel.Text = text or ""
+		end,
+		showBanner = function(text: string, seconds: number)
+			bannerToken += 1
+			local myToken = bannerToken
+			bannerText.Text = text
+			bannerBack.Visible = true
+			task.delay(seconds, function()
+				if bannerToken == myToken then
+					bannerBack.Visible = false
+				end
+			end)
 		end,
 		setCombatVisible = function(visible: boolean)
 			combatRoot.Visible = visible

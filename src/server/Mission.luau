@@ -16,13 +16,23 @@ local RateLimit = require(script.Parent.RateLimit)
 local Lobby = require(script.Parent.Lobby)
 local Combat = require(script.Parent.Combat)
 local Monkeys = require(script.Parent.Monkeys)
+local PlayerHealth = require(script.Parent.PlayerHealth)
+local Carry = require(script.Parent.Carry)
+local Monk = require(script.Parent.Monk)
 
 local MissionCfg = Config.Mission
 local LaunchCfg = Config.Launch
+local MonkCfg = Config.Monk
 
 export type Phase = "Lobby" | "Launching" | "InMission" | "Rocket" | "Results"
 
 type MarkerInfo = { name: string, x: number, z: number }
+
+type BasketFlight = {
+	model: Model,
+	startPos: Vector3,
+	endPos: Vector3,
+}
 
 type Flight = {
 	player: Player,
@@ -51,6 +61,8 @@ local launchRunId = 0 -- เพิ่มทุกครั้งที่เร�
 local markerPositions: { [string]: Vector3 } = {}
 local markerList: { MarkerInfo } = {} -- ส่งให้ client วาดแผนที่
 local stateEvent: RemoteEvent? = nil
+local toastEvent: RemoteEvent? = nil -- server → ผู้ร่วมภารกิจ: ข้อความแจ้งกลางจอ
+local offered = false -- ถวายอาหารพระแล้วหรือยัง (ชุดบั้งไฟใช้ Mission.hasOffered() ดูว่าบั้งไฟพร้อมไหม)
 local rng = Random.new()
 
 local phaseChangedEvent = Instance.new("BindableEvent")
@@ -105,14 +117,18 @@ local function eligibleMembers(): { Player }
 end
 
 local function getMissionFolder(): Folder
-	local existing = Workspace:FindFirstChild(MissionCfg.ObjectsFolderName)
-	if existing ~= nil and existing:IsA("Folder") then
-		return existing
+	return Carry.getFolder()
+end
+
+-- ล้างของภารกิจ (ตะกร้า ถุงเงิน ขนม ฯลฯ) · พระ (Monk) อยู่ต่อข้ามภารกิจ ไม่ต้องสร้างใหม่ทุกรอบ
+-- Carry.clearAll ปล่อยของจากมือคนถือทุกคน (เคลียร์ carrying) ก่อนลบ
+local function clearMissionObjects()
+	Carry.clearAll()
+	for _, child in getMissionFolder():GetChildren() do
+		if child.Name ~= MonkCfg.Name then
+			child:Destroy()
+		end
 	end
-	local folder = Instance.new("Folder")
-	folder.Name = MissionCfg.ObjectsFolderName
-	folder.Parent = Workspace
-	return folder
 end
 
 -- ===== จุดลง =====
@@ -141,7 +157,9 @@ local function defaultLanding(): (number, number)
 end
 
 -- ยิงเรย์ลงหาพื้นที่ (x, z) · ไม่นับห้องรอ ลิง ของภารกิจ และตัวผู้เล่น
-local function groundPoint(x: number, z: number): Vector3
+-- startY = ความสูงที่เริ่มยิง (ไม่ใส่ = สูงสุดตาม LaunchCfg) — ใช้ค่าต่ำเพื่อไม่ให้เกาะหลังคาสิ่งปลูกสร้าง
+-- groundHit คืน nil ถ้าเรย์ไม่โดนพื้น · groundPoint ใช้ค่าสำรองแทน
+local function groundHit(x: number, z: number, startY: number?): Vector3?
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	local ignore: { Instance } = {}
@@ -161,12 +179,20 @@ local function groundPoint(x: number, z: number): Vector3
 	end
 	params.FilterDescendantsInstances = ignore
 	local result = Workspace:Raycast(
-		Vector3.new(x, LaunchCfg.RaycastStartHeight, z),
+		Vector3.new(x, startY or LaunchCfg.RaycastStartHeight, z),
 		Vector3.new(0, -LaunchCfg.RaycastLength, 0),
 		params
 	)
 	if result ~= nil then
 		return result.Position
+	end
+	return nil
+end
+
+local function groundPoint(x: number, z: number, startY: number?): Vector3
+	local hit = groundHit(x, z, startY)
+	if hit ~= nil then
+		return hit
 	end
 	local kuti = markerPositions["Kuti"]
 	return Vector3.new(x, if kuti ~= nil then kuti.Y else LaunchCfg.FallbackGroundY, z)
@@ -234,6 +260,7 @@ local function buildSnapshot(forPlayer: Player): { [string]: any }
 		total = #eligible,
 		countdownEndsAt = if endsClock ~= nil then serverTimeOf(endsClock) else 0,
 		markers = markerList,
+		offered = offered, -- ถวายอาหารพระแล้ว (client ใช้เปลี่ยนข้อความเป้าหมาย)
 	}
 end
 
@@ -341,9 +368,10 @@ function Mission.endMission()
 	participants = {}
 	readySet = {}
 	missionLanding = nil
+	offered = false
 	landingX, landingZ = defaultLanding()
 	landingIsDefault = true
-	getMissionFolder():ClearAllChildren() -- ตะกร้าและของภารกิจ
+	clearMissionObjects() -- ตะกร้าและของภารกิจ · คนถือของปล่อยของ
 
 	Monkeys.resetAll()
 
@@ -373,32 +401,44 @@ local function arcPosition(startPos: Vector3, endPos: Vector3, alpha: number): V
 	return onLine + Vector3.new(0, LaunchCfg.ArcPeakHeight * 4 * alpha * (1 - alpha), 0)
 end
 
-local function spawnBasket(landing: Vector3)
+-- สร้างตะกร้าอาหารที่ถุงหนังสติ๊ก ให้บินพร้อมทีมตามโค้งเดียวกัน (เยื้องหน้าถุงไปทางจุดลง)
+-- จุดลงจริงยังใช้ raycast ลงพื้นเหมือนเดิม: ห่างจุดลงตาม LaunchCfg.BasketOffset แล้ววางให้ก้นตะกร้าแตะพื้น
+local function prepareBasket(landing: Vector3, pouchPosition: Vector3, facing: Vector3): BasketFlight
 	local ground = groundPoint(landing.X + LaunchCfg.BasketOffset.X, landing.Z + LaunchCfg.BasketOffset.Z)
-	local basket = Instance.new("Part")
-	basket.Name = "FoodBasket"
-	basket.Size = LaunchCfg.BasketSize
-	basket.Color = LaunchCfg.BasketColor
-	basket.Material = Enum.Material.Wood
-	basket.Anchored = true -- TODO(ชุดถือของ): ปลดเมื่อผู้เล่นหยิบ/วางได้
-	basket.Position = ground + Vector3.new(0, LaunchCfg.BasketSize.Y / 2, 0)
-	basket.Parent = getMissionFolder()
+	local startPos = pouchPosition
+		+ facing * LaunchCfg.BasketStartForward
+		+ Vector3.new(0, LaunchCfg.BasketStartLift, 0)
+	local model = Carry.spawnItem("FoodBasket", startPos)
+	return {
+		model = model,
+		startPos = startPos,
+		endPos = ground + Vector3.new(0, Carry.restHeight("FoodBasket"), 0),
+	}
+end
 
-	-- ป้ายลอยเหนือตะกร้า ให้หาเจอบนแมพใหญ่
-	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.fromScale(6, 2) -- หน่วย stud
-	billboard.StudsOffset = Vector3.new(0, 3, 0)
-	billboard.AlwaysOnTop = true
-	billboard.Parent = basket
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamBold
-	label.Text = "ตะกร้าอาหาร"
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0.4
-	label.TextScaled = true
-	label.Parent = billboard
+-- พระที่กุฏิ: ถ้าเจ้าของยังไม่มีโมเดล Workspace.MissionObjects.Monk ให้สร้างเอง ยืนข้างจุดกุฏิ ติดพื้น
+local function ensureMonk()
+	local folder = getMissionFolder()
+	if Monk.find(folder) ~= nil then
+		return
+	end
+	local kuti = markerPositions["Kuti"]
+	if kuti == nil then
+		warn(
+			"[Mission] ไม่พบจุดกุฏิ (MapMarkers.Kuti) — ยังสร้างพระไม่ได้ ถวายอาหารไม่ได้"
+		)
+		return
+	end
+	local x, z = kuti.X + MonkCfg.OffsetFromKuti.X, kuti.Z + MonkCfg.OffsetFromKuti.Z
+	local ground = groundHit(x, z, kuti.Y + MonkCfg.RaycastUp)
+	if ground == nil then
+		-- เรย์ไม่โดนพื้น (เช่น terrain ยังไม่โหลด/จุดกุฏิอยู่นอกแมพ) → ใช้ความสูงจุดกุฏิ พระอาจลอย/จม
+		warn(
+			"[Mission] เรย์หาพื้นให้พระไม่โดนอะไร — ใช้ความสูงของจุดกุฏิแทน ตรวจตำแหน่งพระ"
+		)
+		ground = Vector3.new(x, kuti.Y, z)
+	end
+	Monk.build(folder, ground)
 end
 
 -- ทำงานในเธรดแยก: ย้ายเข้าถุง → รอ → บินตามโค้ง → ลงพื้น → เข้าภารกิจ
@@ -439,8 +479,9 @@ local function runLaunch(runId: number, passengers: { Player })
 
 	-- เริ่มภารกิจใหม่: ลิงเกิดใหม่ครบทุกรัง (resetAll ล้างลิงเก่าและรีเซ็ตสถานะรังด้วย) + ตะกร้าอาหาร 1 ใบ
 	Monkeys.resetAll()
-	getMissionFolder():ClearAllChildren()
-	spawnBasket(landingGround)
+	clearMissionObjects()
+	ensureMonk()
+	local basket = prepareBasket(landingGround, pouchCf.Position, facing)
 
 	-- ระหว่างรอ ขอให้ client ของแต่ละคนโหลดแมพรอบจุดลงล่วงหน้า (StreamingEnabled) ทุกคนพร้อมกัน
 	-- แล้วรอจนโหลดเสร็จหรือหมดเวลา ก่อนบิน/ปล่อยตัว กันลงบนพื้นที่ยังไม่โหลด (ตกทะลุพื้น)
@@ -486,9 +527,15 @@ local function runLaunch(runId: number, passengers: { Player })
 				flight.root.CFrame = CFrame.lookAt(position, position + facing)
 			end
 		end
+		if basket.model.Parent ~= nil then
+			basket.model:PivotTo(CFrame.new(arcPosition(basket.startPos, basket.endPos, alpha)))
+		end
 	end
 
-	-- 3) ลงพื้น: ปล่อยตัว (ไม่มีดาเมจตกจากที่สูง เพราะเกมไม่มีระบบเสียเลือดจากการตก)
+	-- 3) ลงพื้น: ตะกร้าลงข้างทีม · ปล่อยตัว (ไม่มีดาเมจตกจากที่สูง เพราะเกมไม่มีระบบเสียเลือดจากการตก)
+	if basket.model.Parent ~= nil then
+		basket.model:PivotTo(CFrame.new(basket.endPos))
+	end
 	for _, flight in flights do
 		if flight.root.Parent ~= nil and flight.player.Character == flight.character then
 			flight.root.CFrame = CFrame.lookAt(flight.endPos, flight.endPos + facing)
@@ -521,6 +568,7 @@ local function startLaunch()
 	launchRunId += 1
 	local runId = launchRunId
 	cancelCountdown()
+	offered = false
 	participants = {}
 	for _, player in passengers do
 		participants[player] = true
@@ -643,6 +691,56 @@ local function onSetLanding(player: Player, x: any, z: any)
 	broadcast()
 end
 
+-- ===== ถวายอาหารพระ =====
+
+-- ส่งข้อความกลางจอให้ผู้ร่วมภารกิจทุกคน
+local function sendToast(text: string, seconds: number)
+	local event = toastEvent
+	if event == nil then
+		return
+	end
+	for player in participants do
+		if player.Parent == Players then
+			event:FireClient(player, { text = text, seconds = seconds })
+		end
+	end
+end
+
+-- client ส่งแค่เจตนา (ไม่มีค่าแนบมา) · เซิร์ฟเวอร์ตรวจช่วงภารกิจ คนถือ ระยะ และว่าถวายไปแล้วหรือยัง
+local function onOfferFood(player: Player)
+	if not RateLimit.allow(player, "OfferFood", MonkCfg.OfferMinIntervalSeconds) then
+		return
+	end
+	if phase ~= "InMission" or not participants[player] or offered then
+		return
+	end
+	if PlayerHealth.getState(player) ~= "Alive" or Carry.getHeldKind(player) ~= "FoodBasket" then
+		return
+	end
+	local root = rootOf(player)
+	local monkPosition = Monk.positionOf(getMissionFolder())
+	if root == nil or monkPosition == nil then
+		return
+	end
+	if (root.Position - monkPosition).Magnitude > MonkCfg.OfferRange + Config.Carry.RangeTolerance then
+		return
+	end
+
+	-- สร้างของใหม่ก่อน แล้วค่อยลบตะกร้า/ตั้งธง (ไม่มี yield จึงไม่มีใครถวายซ้อนได้)
+	Carry.spawnItemOnGround("MoneyBag", monkPosition + MonkCfg.MoneyBagOffset)
+	Carry.spawnItemOnGround("SnackPack", monkPosition + MonkCfg.SnackPackOffset, Config.Snacks.PerMission)
+	Carry.destroyItem("FoodBasket")
+	offered = true
+	-- TODO(ชุดบั้งไฟ): ให้ระบบบั้งไฟเปิดใช้ได้เมื่อ Mission.hasOffered() เป็น true
+	sendToast(
+		"พระให้ถุงเงิน + ขนม "
+			.. Config.Snacks.PerMission
+			.. " ห่อ — บั้งไฟพร้อมแล้ว!",
+		MonkCfg.ToastSeconds
+	)
+	broadcast()
+end
+
 -- ===== ผู้เล่นเข้า/ออก =====
 
 local function registerPlayer(player: Player)
@@ -712,6 +810,27 @@ function Mission.getPhase(): Phase
 	return phase
 end
 
+-- ถวายอาหารพระแล้วหรือยัง (true = บั้งไฟพร้อม) — ชุดบั้งไฟเรียก
+function Mission.hasOffered(): boolean
+	return offered
+end
+
+-- ผู้เล่นคนนี้อยู่ในภารกิจ (ช่วง InMission) ไหม — ใช้ตัดสินว่าถือของ/กินขนมได้ไหม (Carry / Snacks)
+-- จุดปลอดภัยให้ของที่ตกโลก/หายไปกลับมา: ถวายแล้ว = ข้างพระ (ถุงเงิน/ขนม) · ยังไม่ถวาย = จุดลง (ตะกร้า)
+function Mission.getSafeSpot(): Vector3?
+	if offered then
+		local monkPosition = Monk.positionOf(getMissionFolder())
+		if monkPosition ~= nil then
+			return monkPosition
+		end
+	end
+	return missionLanding
+end
+
+function Mission.canInteract(player: Player): boolean
+	return phase == "InMission" and participants[player] == true
+end
+
 -- ใช้ร้านค้า/แลกขนมได้ไหม: ต้องอยู่ช่วงห้องรอ และผู้เล่นคนนี้อยู่ในห้องรอ
 function Mission.isInLobby(player: Player): boolean
 	return phase == "Lobby" and isLobbyMember(player)
@@ -736,6 +855,8 @@ function Mission.init()
 
 	Remotes.remoteEvent("MissionSetReady").OnServerEvent:Connect(onSetReady) -- (boolean)
 	Remotes.remoteEvent("MissionSetLanding").OnServerEvent:Connect(onSetLanding) -- (x: number, z: number)
+	Remotes.remoteEvent("OfferFood").OnServerEvent:Connect(onOfferFood) -- ()
+	toastEvent = Remotes.remoteEvent("MissionToast") -- server → ผู้ร่วมภารกิจ: { text: string, seconds: number }
 
 	Players.PlayerAdded:Connect(registerPlayer)
 	Players.PlayerRemoving:Connect(onPlayerRemoving)

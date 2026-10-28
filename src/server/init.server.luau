@@ -6,6 +6,8 @@ local Shop = require(script.Shop)
 local Mission = require(script.Mission)
 local PlayerHealth = require(script.PlayerHealth)
 local Combat = require(script.Combat)
+local Carry = require(script.Carry)
+local Snacks = require(script.Snacks)
 
 PlayerData.init()
 Shop.init()
@@ -13,6 +15,9 @@ Shop.init()
 Mission.init()
 PlayerHealth.init()
 Combat.init()
+-- ถือของ + กินขนม: ใช้ได้เฉพาะช่วงภารกิจ (InMission) และเป็นผู้ร่วมภารกิจ — Mission เป็นคนตัดสิน
+Carry.init(Mission.canInteract, Mission.getSafeSpot)
+Snacks.init(Mission.canInteract)
 
 -- ระบบลิงและรังลิง
 local Monkeys = require(script.Monkeys)

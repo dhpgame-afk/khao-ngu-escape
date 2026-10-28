@@ -7,18 +7,21 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Hud = require(script.Hud)
 local Controls = require(script.Controls)
 local LobbyUi = require(script.LobbyUi)
+local MissionHud = require(script.MissionHud)
 
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local dataChanged = remotes:WaitForChild("DataChanged") :: RemoteEvent
 local getMyData = remotes:WaitForChild("GetMyData") :: RemoteFunction
 
 local hud = Hud.create()
-local controls = Controls.start(hud)
-local lobbyUi = LobbyUi.start(hud)
+local missionHud = MissionHud.start(hud)
+local controls = Controls.start(hud, missionHud)
+local lobbyUi = LobbyUi.start(hud, missionHud.onSnapshot)
 
 local function onData(payload: any)
 	controls.onData(payload)
 	lobbyUi.onData(payload)
+	missionHud.onData(payload)
 end
 
 dataChanged.OnClientEvent:Connect(onData)

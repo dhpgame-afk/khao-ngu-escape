@@ -46,6 +46,143 @@ local Guns: { [string]: GunDef } = {
 	},
 }
 
+-- ของที่ต้องถือ: ภาพประกอบจาก Part ล้วน ๆ (ไม่ใช้ asset) · ชิ้นแรกในรายการ parts คือ "Body" (ชิ้นหลักที่ weld กับตัวละคร)
+export type ItemPartDef = {
+	name: string,
+	shape: Enum.PartType,
+	size: Vector3,
+	offset: Vector3, -- ตำแหน่งเทียบกึ่งกลางของ Body
+	color: Color3,
+	material: Enum.Material,
+}
+
+export type ItemDef = {
+	displayName: string, -- ชื่อที่ผู้เล่นเห็น (ภาษาไทย)
+	restHeight: number, -- ตอนวางบนพื้น กึ่งกลาง Body สูงจากพื้นเท่านี้
+	holdOffset: Vector3, -- ตอนถือ: ตำแหน่งเทียบ HumanoidRootPart (หน้าตัว = -Z)
+	parts: { ItemPartDef },
+}
+
+local CarryItems: { [string]: ItemDef } = {
+	FoodBasket = {
+		displayName = "ตะกร้าอาหาร",
+		restHeight = 0.8,
+		holdOffset = Vector3.new(0, 0.3, -2.6),
+		parts = {
+			{
+				name = "Body",
+				shape = Enum.PartType.Block,
+				size = Vector3.new(3, 1.6, 3),
+				offset = Vector3.zero,
+				color = Color3.fromRGB(176, 124, 66),
+				material = Enum.Material.Wood,
+			},
+			{
+				name = "Rim",
+				shape = Enum.PartType.Block,
+				size = Vector3.new(3.3, 0.25, 3.3),
+				offset = Vector3.new(0, 0.85, 0),
+				color = Color3.fromRGB(140, 95, 50),
+				material = Enum.Material.Wood,
+			},
+			{
+				name = "FruitRed",
+				shape = Enum.PartType.Ball,
+				size = Vector3.new(1.1, 1.1, 1.1),
+				offset = Vector3.new(-0.7, 1.2, 0.3),
+				color = Color3.fromRGB(220, 60, 50),
+				material = Enum.Material.SmoothPlastic,
+			},
+			{
+				name = "FruitGreen",
+				shape = Enum.PartType.Ball,
+				size = Vector3.new(1, 1, 1),
+				offset = Vector3.new(0.6, 1.15, -0.5),
+				color = Color3.fromRGB(90, 170, 70),
+				material = Enum.Material.SmoothPlastic,
+			},
+			{
+				name = "FruitYellow",
+				shape = Enum.PartType.Ball,
+				size = Vector3.new(0.9, 0.9, 0.9),
+				offset = Vector3.new(0.4, 1.15, 0.8),
+				color = Color3.fromRGB(250, 210, 60),
+				material = Enum.Material.SmoothPlastic,
+			},
+		},
+	},
+	MoneyBag = {
+		displayName = "ถุงเงิน",
+		restHeight = 0.9,
+		holdOffset = Vector3.new(0.8, 0.2, -1.8),
+		parts = {
+			{
+				name = "Body",
+				shape = Enum.PartType.Ball,
+				size = Vector3.new(1.8, 1.8, 1.8),
+				offset = Vector3.zero,
+				color = Color3.fromRGB(200, 170, 110),
+				material = Enum.Material.Fabric,
+			},
+			{
+				name = "Neck",
+				shape = Enum.PartType.Block,
+				size = Vector3.new(0.9, 0.5, 0.9),
+				offset = Vector3.new(0, 1.0, 0),
+				color = Color3.fromRGB(200, 170, 110),
+				material = Enum.Material.Fabric,
+			},
+			{
+				name = "Tie",
+				shape = Enum.PartType.Block,
+				size = Vector3.new(1.1, 0.25, 1.1),
+				offset = Vector3.new(0, 0.8, 0),
+				color = Color3.fromRGB(150, 40, 40),
+				material = Enum.Material.Fabric,
+			},
+			{
+				name = "Coin",
+				shape = Enum.PartType.Block,
+				size = Vector3.new(0.8, 0.8, 0.1),
+				offset = Vector3.new(0, 0, -0.9),
+				color = Color3.fromRGB(255, 200, 40),
+				material = Enum.Material.Metal,
+			},
+		},
+	},
+	SnackPack = {
+		displayName = "ขนมพระ",
+		restHeight = 0.6,
+		holdOffset = Vector3.new(0, 0.3, -2.0),
+		parts = {
+			{
+				name = "Body",
+				shape = Enum.PartType.Block,
+				size = Vector3.new(2, 1.2, 1.4),
+				offset = Vector3.zero,
+				color = Color3.fromRGB(250, 200, 80),
+				material = Enum.Material.SmoothPlastic,
+			},
+			{
+				name = "Pack2",
+				shape = Enum.PartType.Block,
+				size = Vector3.new(1.7, 0.9, 1.2),
+				offset = Vector3.new(0.1, 1.0, 0),
+				color = Color3.fromRGB(235, 120, 60),
+				material = Enum.Material.SmoothPlastic,
+			},
+			{
+				name = "Ribbon",
+				shape = Enum.PartType.Block,
+				size = Vector3.new(0.3, 1.3, 1.5),
+				offset = Vector3.zero,
+				color = Color3.fromRGB(200, 50, 50),
+				material = Enum.Material.Fabric,
+			},
+		},
+	},
+}
+
 local Config = {
 	MaxPlayers = 4,
 
@@ -95,6 +232,7 @@ local Config = {
 		HalfWidthStuds = 485, -- ครึ่งความกว้าง (ตะวันออก–ตะวันตก)
 		HalfDepthStuds = 320, -- ครึ่งความลึก (เหนือ–ใต้)
 		LandingMarginStuds = 40, -- จุดลงต้องห่างขอบแมพอย่างน้อยเท่านี้ (ไม่ให้ลงติดขอบ/นอกแมพ)
+		MetersPerStud = 0.28, -- ใช้แสดงระยะไปเป้าหมายเป็นเมตร
 		-- ชื่อจุดสำคัญใน Workspace.MapMarkers (Kuti = กุฏิ · Nest1–4 = รังลิง · RocketPad = ฐานบั้งไฟ)
 		MarkerNames = { "Kuti", "Nest1", "Nest2", "Nest3", "Nest4", "RocketPad" },
 	},
@@ -165,9 +303,9 @@ local Config = {
 		RaycastLength = 3000,
 		FallbackGroundY = 50, -- ถ้าเรย์ไม่โดนพื้น (ไม่น่าเกิด) ใช้ความสูงนี้
 		LandingRootHeight = 3.5, -- วาง HumanoidRootPart สูงจากพื้นเท่านี้ตอนลง
-		BasketOffset = Vector3.new(0, 0, 10), -- ตะกร้าอาหารอยู่ห่างจากจุดลงไปทางใต้เท่านี้
-		BasketSize = Vector3.new(3, 2, 3),
-		BasketColor = Color3.fromRGB(176, 124, 66),
+		BasketOffset = Vector3.new(0, 0, 10), -- ตะกร้าอาหารลงพื้นห่างจากจุดลงไปทางใต้เท่านี้ (บินตามโค้งเดียวกับผู้เล่น)
+		BasketStartForward = 3, -- ตะกร้าเริ่มบินจากหน้าถุงหนังสติ๊ก (ไปทางจุดลง) เท่านี้ ไม่ทับตัวผู้เล่น
+		BasketStartLift = 1.5, -- และยกสูงจากถุงเท่านี้
 	},
 
 	Guns = Guns,
@@ -228,10 +366,46 @@ local Config = {
 		AimFov = 45,
 	},
 
+	-- ถือของ (ตะกร้าอาหาร / ถุงเงิน / ขนมพระ): ถือได้ทีละชิ้นต่อคน · ชิ้นละ 1 คนถือ
+	Carry = {
+		PickupRange = 8, -- ยืนห่างของไม่เกินกี่ stud ถึงหยิบได้ (TODO ยังไม่ระบุ: ปรับตอนทดสอบ)
+		RangeTolerance = 3, -- เซิร์ฟเวอร์ยอมให้เกินระยะนี้อีกนิด (ชดเชยเน็ตหน่วง)
+		PickupMinIntervalSeconds = 0.3,
+		DropMinIntervalSeconds = 0.3,
+		DropForwardStuds = 3, -- กดวางของ: วางห่างหน้าตัวเท่านี้ (ตายหรือออกเกม = วางตรงที่ยืน)
+		DropRayStartUp = 2, -- เรย์หาพื้นรอบแรกเริ่มจากสูงกว่าจุดวางแค่นี้ (ระดับตัว ไม่เกาะหินที่ยื่นอยู่เหนือหัว)
+		DropRayUp = 12, -- รอบสอง (ถ้ารอบแรกไม่โดน) เริ่มจากสูงเท่านี้
+		VoidY = -50, -- พื้นที่เจอต่ำกว่านี้ถือว่าตกโลก → ใช้ตำแหน่งดีล่าสุด/จุดปลอดภัยแทน
+		DropRayLength = 150,
+		DropFallbackDown = 3, -- ถ้าเรย์ไม่โดนพื้น วางต่ำกว่าจุดเดิมเท่านี้
+		LabelSize = UDim2.fromScale(7, 2), -- ป้ายลอย (หน่วย stud)
+		LabelStudsOffset = Vector3.new(0, 3, 0),
+		LabelMaxDistance = 160, -- เห็นป้ายไกลสุดกี่ stud
+		LabelColor = Color3.fromRGB(255, 255, 255),
+		Items = CarryItems,
+	},
+
+	-- พระที่กุฏิ (NPC ใจดี ไม่ถูกโจมตี ลิงไม่สนใจ)
+	Monk = {
+		Name = "Monk", -- ชื่อโมเดลใน Workspace.MissionObjects · ถ้าเจ้าของทำโมเดลชื่อนี้เอง ระบบใช้ของเจ้าของ
+		OffsetFromKuti = Vector3.new(8, 0, 8), -- ยืนห่างจุดกุฏิเท่านี้ (แล้วยิงเรย์ลงพื้น)
+		RaycastUp = 60, -- ยิงเรย์หาพื้นจากสูงกว่าจุดกุฏิเท่านี้ (ไม่เกาะหลังคา)
+		OfferRange = 14, -- คนถือตะกร้ายืนห่างพระไม่เกินกี่ stud ถึงถวายได้
+		OfferMinIntervalSeconds = 0.5,
+		LabelText = "พระ",
+		RobeColor = Color3.fromRGB(235, 125, 20), -- จีวรสีส้มเหลือง
+		SashColor = Color3.fromRGB(190, 85, 15), -- ผ้าพาดไหล่ เข้มกว่าเล็กน้อย
+		SkinColor = Color3.fromRGB(224, 172, 120),
+		MoneyBagOffset = Vector3.new(-4, 0, 3), -- ถุงเงินที่พระให้ วางข้างพระ
+		SnackPackOffset = Vector3.new(4, 0, 3), -- ขนม 4 ห่อ วางข้างพระ
+		ToastSeconds = 4, -- ข้อความ "พระให้..." ขึ้นกี่วิ
+	},
+
 	Snacks = {
 		PerMission = 4,
 		TempHealth = 250,
 		TempHealthSeconds = 10,
+		EatMinIntervalSeconds = 0.5, -- จำกัดความถี่กดกินขนม
 		MaxStored = 15, -- เก็บข้ามเกมได้สูงสุด
 		ExchangeMoney = 25, -- แลกห่อละ 25 เงิน (เกินเพดานแลกเป็นเงินอัตโนมัติด้วยอัตราเดียวกัน)
 	},

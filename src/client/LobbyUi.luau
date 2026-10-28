@@ -139,7 +139,11 @@ end
 
 -- ===== เริ่มระบบ =====
 
-function LobbyUi.start(hud: Hud.Refs): { onData: (payload: any) -> () }
+-- onSnapshot: ส่งต่อสถานะภารกิจที่เซิร์ฟเวอร์ส่งมา (MissionState) ให้ MissionHud ใช้ด้วย
+function LobbyUi.start(
+	hud: Hud.Refs,
+	onSnapshot: ((snapshot: { [string]: any }) -> ())?
+): { onData: (payload: any) -> () }
 	local player = Players.LocalPlayer
 	local playerGui = player:WaitForChild("PlayerGui")
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -544,6 +548,9 @@ function LobbyUi.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 
 	local function applySnapshot(s: { [string]: any })
 		snapshot = s
+		if onSnapshot ~= nil then
+			onSnapshot(s)
+		end
 		local phase = s.phase
 		local inLobby = s.inLobby == true
 

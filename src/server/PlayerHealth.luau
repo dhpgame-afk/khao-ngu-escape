@@ -2,7 +2,8 @@
 -- PlayerHealth: เลือดและสถานะของผู้เล่น (ปกติ / ล้ม / ตาย) — เซิร์ฟเวอร์เป็นคนเปลี่ยนเท่านั้น
 -- สถานะส่งให้ทุก client ผ่าน Attribute บน Character: State, StateEndsAt (เวลาเซิร์ฟเวอร์), ReviveProgress (0–1),
 -- DownedHealth (เลือดตอนล้ม · 0 เมื่อไม่ได้ล้ม)
--- (ไม่ใช่ข้อมูลลับ — ใช้วาด UI นับถอยหลัง/แถบชุบ)
+-- TempHealth (เลือดชั่วคราวจากขนมพระ · 0 = ไม่มี), TempHealthEndsAt (เวลาเซิร์ฟเวอร์ที่หมดฤทธิ์)
+-- (ไม่ใช่ข้อมูลลับ — ใช้วาด UI นับถอยหลัง/แถบชุบ/แถบเลือดชั่วคราว)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -24,6 +25,8 @@ type Info = {
 	lastHitClock: number, -- os.clock ตอนโดนครั้งล่าสุด (ไว้หน่วงการฟื้นเลือด)
 	downedEndsAt: number, -- os.clock ที่ล้มแล้วจะกลายเป็นตาย
 	downedHealth: number, -- "เลือดตอนล้ม" ลิงตีลดได้ (หมด = ตายทันที) · 0 เมื่อไม่ได้ล้ม
+	tempHealth: number, -- เลือดชั่วคราวจากขนมพระ: รับดาเมจก่อนเลือดจริง · 0 = ไม่มี
+	tempEndsAt: number, -- os.clock ที่เลือดชั่วคราวหมดฤทธิ์
 	jumpHeight: number, -- เก็บค่าตอนเกิดไว้คืนให้ตอนชุบ
 	jumpPower: number,
 }
@@ -43,6 +46,35 @@ local revives: { [Player]: ReviveJob } = {} -- key = คนที่กำลั
 local function publish(info: Info, endsAtServerTime: number)
 	info.character:SetAttribute("State", info.state)
 	info.character:SetAttribute("StateEndsAt", endsAtServerTime)
+end
+
+-- ส่งค่าเลือดชั่วคราวให้ทุก client (Attribute บน Character) · ค่า 0 = ไม่มี
+local function publishTemp(info: Info)
+	info.character:SetAttribute("TempHealth", info.tempHealth)
+	local endsAt = 0
+	if info.tempHealth > 0 then
+		endsAt = Workspace:GetServerTimeNow() + (info.tempEndsAt - os.clock())
+	end
+	info.character:SetAttribute("TempHealthEndsAt", endsAt)
+end
+
+local function clearTemp(info: Info)
+	if info.tempHealth ~= 0 then
+		info.tempHealth = 0
+		info.tempEndsAt = 0
+		publishTemp(info)
+	end
+end
+
+-- ให้เลือดชั่วคราวรับดาเมจก่อน · คืนดาเมจที่เหลือหลังหักแล้ว
+local function absorbWithTemp(info: Info, amount: number): number
+	if info.tempHealth <= 0 then
+		return amount
+	end
+	local absorbed = math.min(info.tempHealth, amount)
+	info.tempHealth -= absorbed
+	publishTemp(info)
+	return amount - absorbed
 end
 
 local function rootOf(player: Player): BasePart?
@@ -98,6 +130,7 @@ local function setDead(player: Player, info: Info)
 	info.state = "Dead"
 	info.downedHealth = 0
 	info.character:SetAttribute("DownedHealth", 0)
+	clearTemp(info)
 	cancelRevivesInvolving(player)
 	publish(info, Workspace:GetServerTimeNow() + PCfg.RespawnSeconds)
 	info.humanoid.Health = 0 -- ตั้งสถานะก่อน เพื่อให้ Died ที่ตามมาไม่ทำซ้ำ
@@ -115,6 +148,7 @@ local function setDowned(player: Player, info: Info)
 		return
 	end
 	info.state = "Downed"
+	clearTemp(info)
 	info.downedEndsAt = os.clock() + PCfg.DownedSeconds
 	info.downedHealth = PCfg.DownedHealth
 	info.character:SetAttribute("DownedHealth", info.downedHealth)
@@ -136,6 +170,7 @@ local function setAlive(info: Info, health: number)
 	info.state = "Alive"
 	info.downedHealth = 0
 	info.character:SetAttribute("DownedHealth", 0)
+	clearTemp(info)
 	info.humanoid.Health = health
 	info.humanoid.WalkSpeed = PCfg.WalkSpeed
 	info.humanoid.JumpHeight = info.jumpHeight
@@ -164,6 +199,11 @@ local function applyDamage(player: Player, amount: number, killsOutright: boolea
 		return
 	end
 	info.lastHitClock = os.clock()
+	-- เลือดชั่วคราวจากขนมพระรับก่อน (ทั้งลิงและเพื่อน) ที่เหลือค่อยหักเลือดจริง
+	amount = absorbWithTemp(info, amount)
+	if amount <= 0 then
+		return
+	end
 	local remaining = info.humanoid.Health - amount
 	if remaining > 0 then
 		info.humanoid.Health = remaining
@@ -197,6 +237,19 @@ end
 -- (ประทัดที่ขว้างเองโดนตัวเองได้ → victim == attacker ก็ล้มแบบเดียวกัน · ผู้เรียกเป็นคนเลือกว่าอาวุธไหนโดนตัวเองได้)
 function PlayerHealth.damageFromPlayer(victim: Player, amount: number, attacker: Player)
 	applyDamage(victim, amount, false)
+end
+
+-- กินขนมพระ: ได้เลือดชั่วคราว (Config.Snacks.TempHealth) นาน TempHealthSeconds · ไม่ซ้อนทับ แค่รีเซ็ตเป็นเต็มและเริ่มนับเวลาใหม่
+-- ได้เฉพาะตอนสถานะปกติ (ล้ม/ตายกินไม่ได้) · คืน true ถ้าให้สำเร็จ
+function PlayerHealth.grantTempHealth(player: Player): boolean
+	local info = infos[player]
+	if info == nil or info.state ~= "Alive" then
+		return false
+	end
+	info.tempHealth = Config.Snacks.TempHealth
+	info.tempEndsAt = os.clock() + Config.Snacks.TempHealthSeconds
+	publishTemp(info)
+	return true
 end
 
 -- ===== ชุบ =====
@@ -278,6 +331,9 @@ local function tick(dt: number)
 		if info.character.Parent == nil then
 			continue
 		end
+		if info.tempHealth > 0 and now >= info.tempEndsAt then
+			clearTemp(info) -- หมดเวลา 10 วิ
+		end
 		if info.state == "Alive" then
 			local hum = info.humanoid
 			if hum.Health < PCfg.MaxHealth and now - info.lastHitClock >= PCfg.RegenDelaySeconds then
@@ -314,12 +370,16 @@ local function onCharacterAdded(player: Player, character: Model)
 		lastHitClock = 0,
 		downedEndsAt = 0,
 		downedHealth = 0,
+		tempHealth = 0,
+		tempEndsAt = 0,
 		jumpHeight = humanoid.JumpHeight,
 		jumpPower = humanoid.JumpPower,
 	}
 	infos[player] = info
 	character:SetAttribute("ReviveProgress", 0)
 	character:SetAttribute("DownedHealth", 0)
+	character:SetAttribute("TempHealth", 0)
+	character:SetAttribute("TempHealthEndsAt", 0)
 	publish(info, 0)
 
 	humanoid.Died:Connect(function()
@@ -387,7 +447,11 @@ function PlayerHealth.init()
 		while true do
 			task.wait(TICK_SECONDS)
 			local now = os.clock()
-			tick(now - last)
+			-- ครอบด้วย xpcall: ถ้ารอบใดพัง ลูปต้องไม่ตาย (ไม่งั้นล้มหมดเวลา/ชุบ/ฟื้นเลือดหยุดถาวร)
+			local ok, err = xpcall(tick, debug.traceback, now - last)
+			if not ok then
+				warn("[PlayerHealth] tick error:", err)
+			end
 			last = now
 		end
 	end)
