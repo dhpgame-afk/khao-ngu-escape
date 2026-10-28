@@ -161,6 +161,125 @@ local function canAct(player: Player): Loadout?
 	return loadout
 end
 
+-- ===== ภาพไม้กวดในมือ =====
+-- สร้าง/ลบที่เซิร์ฟเวอร์ ทุกคนจึงเห็นตรงกัน · เป็นภาพล้วน ๆ ไม่ชน ไม่หนัก ไม่ถูก raycast (ไม่กระทบการคิดโดน)
+
+local BROOM_FOLDER_NAME = "HeldBroom"
+
+-- พิมพ์ดีบักฟาดไม้กวด (เปิด/ปิดที่ Config.Debug.BroomSwing)
+local function debugBroom(message: string)
+	if Config.Debug.BroomSwing then
+		print("[BroomSwing][server] " .. message)
+	end
+end
+
+local function removeBroom(character: Model)
+	local existing = character:FindFirstChild(BROOM_FOLDER_NAME)
+	if existing ~= nil then
+		existing:Destroy()
+	end
+end
+
+local function makeVisualPart(name: string, size: Vector3, color: Color3, material: Enum.Material): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.Color = color
+	part.Material = material
+	part.Massless = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	return part
+end
+
+local function attachBroom(character: Model)
+	if character:FindFirstChild(BROOM_FOLDER_NAME) ~= nil then
+		return
+	end
+	-- R15 = RightHand · R6 = Right Arm
+	local hand = character:FindFirstChild("RightHand")
+	local gripOffset = Config.Broom.GripOffsetR15
+	if hand == nil then
+		hand = character:FindFirstChild("Right Arm")
+		gripOffset = Config.Broom.GripOffsetR6
+	end
+	if hand == nil or not hand:IsA("BasePart") then
+		return
+	end
+
+	local broomCfg = Config.Broom
+	local folder = Instance.new("Folder")
+	folder.Name = BROOM_FOLDER_NAME
+
+	local length = broomCfg.HandleLength
+	local handle = makeVisualPart(
+		"Handle",
+		Vector3.new(broomCfg.HandleThickness, length, broomCfg.HandleThickness),
+		broomCfg.HandleColor,
+		Enum.Material.Wood
+	)
+	-- วางด้ามให้จุดจับ (วัดจากปลายบน) ตรงกับมือ แล้วเอียงด้ามไปข้างหน้า (ดู GripTiltDegrees)
+	-- ปลายล่างของด้าม (แกน -Y) คือด้านหัวไม้กวด
+	local gripOnHandle = CFrame.new(0, length / 2 - broomCfg.GripFromTop, 0)
+	local handWeld = Instance.new("Weld")
+	handWeld.Name = "HandWeld"
+	handWeld.Part0 = hand
+	handWeld.Part1 = handle
+	handWeld.C0 = CFrame.new(gripOffset) * CFrame.Angles(math.rad(broomCfg.GripTiltDegrees), 0, 0)
+	handWeld.C1 = gripOnHandle
+	handle.CFrame = hand.CFrame * handWeld.C0 * gripOnHandle:Inverse()
+	handWeld.Parent = handle
+
+	-- หัวไม้กวดรูปพัด = ส่วนคอแคบ (บน) + ชายฟางบานกว้าง (ล่าง) ต่อที่ปลายล่างของด้าม ซ้อนกันเล็กน้อยให้ดูแน่น
+	local headSize = broomCfg.BristleSize
+	local neckHeight = headSize.Y * broomCfg.NeckHeightFraction
+	local skirtHeight = headSize.Y - neckHeight
+	local headTopY = -(length / 2) + 0.3 -- ขอบบนของหัวไม้กวด (พิกัดบนด้าม)
+
+	local function addHeadPart(name: string, size: Vector3, centerY: number, color: Color3)
+		local part = makeVisualPart(name, size, color, Enum.Material.Fabric)
+		local weld = Instance.new("Weld")
+		weld.Name = name .. "Weld"
+		weld.Part0 = handle
+		weld.Part1 = part
+		weld.C0 = CFrame.new(0, centerY, 0)
+		part.CFrame = handle.CFrame * weld.C0
+		weld.Parent = part
+		part.Parent = folder
+	end
+	addHeadPart(
+		"BroomNeck",
+		Vector3.new(headSize.X * broomCfg.NeckWidthFraction, neckHeight, headSize.Z * 0.9),
+		headTopY - neckHeight / 2,
+		broomCfg.NeckColor
+	)
+	addHeadPart(
+		"Bristles",
+		Vector3.new(headSize.X, skirtHeight, headSize.Z),
+		headTopY - neckHeight - skirtHeight / 2,
+		broomCfg.BristleColor
+	)
+
+	handle.Parent = folder
+	folder.Parent = character
+end
+
+-- ให้ไม้กวดในมือตรงกับสถานะ: ถืออยู่เมื่อเลือกช่อง 3 และสถานะปกติเท่านั้น (ล้ม/ตาย/ช่องอื่น = ลบ)
+local function syncBroom(player: Player, loadout: Loadout)
+	local character = loadout.character
+	if character.Parent == nil then
+		return
+	end
+	local wantBroom = loadout.slot == SLOT_BROOM and PlayerHealth.getState(player) == "Alive"
+	if wantBroom then
+		attachBroom(character)
+	else
+		removeBroom(character)
+	end
+end
+
 -- ===== หาเป้า / ทำความเสียหาย =====
 
 -- เดินขึ้นจากชิ้นส่วนที่ raycast โดน หาว่าเป็นตัวลิง (Model ติด tag) หรือตัวละครผู้เล่น
@@ -418,10 +537,12 @@ local function onSwing(player: Player, rawDir: any)
 	end
 	local loadout = canAct(player)
 	if loadout == nil or loadout.slot ~= SLOT_BROOM then
+		debugBroom(player.Name .. " swing rejected: cannot act or slot is not broom")
 		return
 	end
 	local now = os.clock()
 	if now - loadout.lastSwing < Config.Broom.SwingCooldownSeconds then
+		debugBroom(player.Name .. " swing rejected: cooldown")
 		return
 	end
 	local root = rootPart(loadout.character)
@@ -429,6 +550,18 @@ local function onSwing(player: Player, rawDir: any)
 		return
 	end
 	loadout.lastSwing = now
+	debugBroom(player.Name .. " swing accepted (slot 3)")
+
+	-- บอกทุกคน (ยกเว้นผู้ฟาด ที่เล่นท่าเองทันทีแล้ว) ให้เล่นท่าฟาด — ภาพล้วน ไม่เกี่ยวกับการคิดความเสียหายด้านล่าง
+	local fx = fxEvent
+	if fx ~= nil then
+		local message = { kind = "swing", character = loadout.character }
+		for _, other in Players:GetPlayers() do
+			if other ~= player then
+				fx:FireClient(other, message)
+			end
+		end
+	end
 
 	-- ฟาดเป็นรูปพัดหน้าตัว: อยู่ในระยะ + อยู่ในมุม (TODO: เช็คกำแพงกั้น)
 	local origin = root.Position
@@ -459,6 +592,7 @@ local function onSelectSlot(player: Player, rawSlot: any)
 			loadout.slot = rawSlot
 		end
 	end
+	syncBroom(player, loadout)
 	pushState(player, loadout)
 end
 
@@ -478,6 +612,7 @@ local function onSelectGun(player: Player, gunId: any)
 		loadout.gunId = gunId
 	end
 	loadout.slot = SLOT_GUN
+	syncBroom(player, loadout) -- เปลี่ยนไปถือปืน = เก็บไม้กวด
 	pushState(player, loadout)
 end
 
@@ -504,7 +639,24 @@ local function resetLoadout(player: Player, character: Model)
 		carrying = false,
 	}
 	loadouts[player] = loadout
+	removeBroom(character)
 	pushState(player, loadout)
+
+	-- สถานะเปลี่ยน (ล้ม/ตาย/ชุบ) หรือตัวละครตาย → ให้ไม้กวดในมือตรงกับสถานะ
+	local function resyncBroom()
+		if loadouts[player] == loadout then
+			syncBroom(player, loadout)
+		end
+	end
+	character:GetAttributeChangedSignal("State"):Connect(resyncBroom)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid ~= nil then
+		humanoid.Died:Connect(function()
+			if loadouts[player] == loadout then
+				removeBroom(character)
+			end
+		end)
+	end
 
 	-- ข้อมูลผู้เล่น (ปืนที่มี) อาจยังโหลดไม่เสร็จ → รอแล้วเลือกปืนให้ใหม่
 	task.spawn(function()

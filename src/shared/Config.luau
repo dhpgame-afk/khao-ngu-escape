@@ -107,6 +107,26 @@ local Config = {
 		SwingCooldownSeconds = 0.6, -- TODO(ยังไม่ระบุ)
 		Range = 7, -- TODO(ยังไม่ระบุ): ระยะฟาด (stud)
 		ArcHalfAngleDegrees = 60, -- TODO(ยังไม่ระบุ): มุมฟาดครึ่งหนึ่งของแต่ละข้าง
+
+		-- ภาพไม้กวด (ประกอบจาก Part ล้วน ๆ ไม่ใช้ asset) — ไม่มีผลกับการคิดความเสียหาย
+		HandleLength = 4.5, -- ความยาวด้าม (stud)
+		HandleThickness = 0.25,
+		HandleColor = Color3.fromRGB(139, 94, 52), -- ไม้
+		BristleSize = Vector3.new(1.2, 1.5, 0.4), -- หัวไม้กวดรวมส่วนคอ (กว้าง × ยาว × หนา)
+		BristleColor = Color3.fromRGB(222, 190, 100), -- ฟางดอกหญ้า
+		NeckColor = Color3.fromRGB(170, 135, 70), -- ส่วนคอ/ตรงที่มัดฟาง (เข้มกว่า)
+		NeckHeightFraction = 0.35, -- ส่วนคอสูงกี่ส่วนของหัวไม้กวด (ด้านบน แคบ) ที่เหลือคือชายฟางบานออก
+		NeckWidthFraction = 0.5, -- ส่วนคอกว้างกี่ส่วนของชายฟาง
+		GripFromTop = 1.2, -- จุดที่มือจับ วัดจากปลายด้านบนของด้าม
+		GripTiltDegrees = 70, -- เอียงด้ามไปข้างหน้าจากแนวดิ่ง (ตอนแขนห้อยลง) · 70 = ปลายหัวไม้กวดชี้ไปข้างหน้า ไม่จิ้มพื้น
+		GripOffsetR15 = Vector3.new(0, -0.2, 0), -- จุดจับบน RightHand
+		GripOffsetR6 = Vector3.new(0, -1, 0), -- จุดจับบน Right Arm (ปลายแขน)
+		SwingSeconds = 0.3, -- ท่าฟาดทั้งท่า
+		SwingWindupDegrees = 110, -- ยกแขนขึ้นก่อนฟาดกี่องศา
+		SwingStrikeDegrees = -15, -- ปลายท่าฟาด (ติดลบ = แขนปัดลงต่ำกว่าท่าห้อย)
+		SwingWindupFraction = 0.3, -- ช่วงง้างเป็นกี่ส่วนของเวลาทั้งหมด
+		SwingStrikeEndFraction = 0.7, -- ฟาดเสร็จที่กี่ส่วน (หลังจากนั้นกลับท่าเดิม)
+		SwingBroomExtraFactor = 0.4, -- ไม้กวดหมุนรอบจุดจับเพิ่มอีก (เท่าของมุมแขน) ให้ปัดเป็นวงกว้าง
 	},
 
 	Combat = {
@@ -164,6 +184,11 @@ local Config = {
 
 	Shop = {
 		RequestCooldownSeconds = 0.5, -- จำกัดความถี่คำขอต่อผู้เล่น
+	},
+
+	-- ธงดีบัก (ชั่วคราว) — ปิดให้เป็น false ก่อน Publish
+	Debug = {
+		BroomSwing = true, -- พิมพ์ลง Output ตอนฟาดไม้กวด (ฝั่ง client และ server)
 	},
 }
 

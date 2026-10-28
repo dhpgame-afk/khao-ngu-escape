@@ -251,6 +251,11 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 			end
 			lastPrimaryClock = now
 			faceDirection(dir)
+			-- เล่นท่าฟาดของตัวเองทันที (ภาพล้วน ๆ) · เซิร์ฟเวอร์ไม่ส่งซ้ำกลับมาให้เจ้าของ
+			local ownModel = player.Character
+			if ownModel ~= nil then
+				Fx.broomSwing(ownModel)
+			end
 			swingRemote:FireServer(dir)
 		end
 	end
@@ -392,6 +397,20 @@ function Controls.start(hud: Hud.Refs): { onData: (payload: any) -> () }
 	end)
 
 	fxRemote.OnClientEvent:Connect(function(origin: any, ends: any)
+		-- ข้อความแบบตาราง {kind = "swing", character = ...} = ท่าฟาดไม้กวดของผู้เล่นคนอื่น
+		if type(origin) == "table" then
+			local message = origin :: { [any]: any }
+			local swinger = message.character
+			if
+				message.kind == "swing"
+				and typeof(swinger) == "Instance"
+				and swinger:IsA("Model")
+				and swinger ~= player.Character
+			then
+				Fx.broomSwing(swinger)
+			end
+			return
+		end
 		if typeof(origin) ~= "Vector3" or type(ends) ~= "table" then
 			return
 		end
