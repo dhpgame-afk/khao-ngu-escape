@@ -236,6 +236,108 @@ local Config = {
 		MetersPerStud = 0.28, -- ใช้แสดงระยะไปเป้าหมายเป็นเมตร
 		-- ชื่อจุดสำคัญใน Workspace.MapMarkers (Kuti = กุฏิ · Nest1–4 = รังลิง · RocketPad = ฐานบั้งไฟ)
 		MarkerNames = { "Kuti", "Nest1", "Nest2", "Nest3", "Nest4", "RocketPad" },
+		MarkersFolderName = "MapMarkers", -- โฟลเดอร์จุดสำคัญใน Workspace (MapSetup สร้างให้ถ้าไม่มี)
+		ObjectsFolderName = "MapObjects", -- โฟลเดอร์สิ่งถาวรบนแมพ (กุฏิ พระ) · ไม่ถูกล้างตอนจบภารกิจ (ต่างจาก Mission.ObjectsFolderName)
+		-- จุดสำคัญจะมองไม่เห็นในเกมถ้า false (ใช้แค่เป็นพิกัดให้โค้ดอ่าน) · true = แท่งสีนีออน+ป้ายชื่อ ไว้ดีบักตำแหน่ง
+		MarkersVisible = false,
+		MarkerVisibleTransparency = 0.4, -- ความโปร่งใสของแท่ง ตอน MarkersVisible = true
+		MarkerLabelSize = UDim2.fromOffset(160, 40),
+		MarkerLabelStudsOffset = Vector3.new(0, 8, 0),
+		-- ตำแหน่งเริ่มต้นของจุดสำคัญ (x, z) · MapSetup สร้างให้เฉพาะจุดที่ยังไม่มีใน Workspace.MapMarkers
+		-- (ไม่ย้าย/ไม่ทับจุดที่เจ้าของวางเองแล้ว) · ความสูง Y หาจากการยิงเรย์ลงบน Terrain
+		-- กุฏิอยู่กลางแมพ (0,0) · ทิศเหนือ = Z ติดลบ · อิงผังใน mockups/wireframe.html
+		Markers = {
+			Kuti = {
+				label = "กุฏิ",
+				x = 0,
+				z = 0,
+				color = Color3.fromRGB(255, 200, 40),
+				size = Vector3.new(24, 4, 24),
+			},
+			Nest1 = {
+				label = "รังลิง 1",
+				x = -186,
+				z = -98,
+				color = Color3.fromRGB(150, 90, 40),
+				size = Vector3.new(16, 4, 16),
+			},
+			Nest2 = {
+				label = "รังลิง 2",
+				x = 186,
+				z = -104,
+				color = Color3.fromRGB(150, 90, 40),
+				size = Vector3.new(16, 4, 16),
+			},
+			Nest3 = {
+				label = "รังลิง 3",
+				x = -138,
+				z = 130,
+				color = Color3.fromRGB(150, 90, 40),
+				size = Vector3.new(16, 4, 16),
+			},
+			Nest4 = {
+				label = "รังลิง 4",
+				x = 138,
+				z = 117,
+				color = Color3.fromRGB(150, 90, 40),
+				size = Vector3.new(16, 4, 16),
+			},
+			RocketPad = {
+				label = "ฐานบั้งไฟ",
+				x = 318,
+				z = 195,
+				color = Color3.fromRGB(230, 60, 60),
+				size = Vector3.new(30, 4, 30),
+			},
+		},
+	},
+
+	-- กุฏิพระ: อาคารไม้ยกพื้นสร้างจาก Part (MapSetup สร้างตอนเริ่มเซิร์ฟเวอร์ถ้าไม่มี Workspace.MapObjects.<Name>)
+	-- ถ้าเจ้าของทำกุฏิเอง: ลบโมเดลนี้ทิ้ง แล้วใส่ Model/Part ชื่อเดียวกันใน Workspace.MapObjects → ระบบใช้ของเจ้าของ
+	-- ประตูหันไปทางใต้ (+Z) ฝั่งที่ผู้เล่นลงมา · หน่วยเป็น stud
+	Kuti = {
+		Name = "KutiBuilding",
+		Width = 20, -- ด้านกว้าง (แกน X)
+		Depth = 16, -- ด้านลึก (แกน Z)
+		StiltHeight = 3, -- ความสูงใต้ถุน (วัดจากจุดต่ำสุดของพื้นดินใต้กุฏิ)
+		StiltSize = 1.2,
+		StiltBury = 3, -- เสาฝังลงใต้พื้นดินเท่านี้ (กันลอยเมื่อพื้นลาด)
+		StiltCountX = 3, -- จำนวนเสาต่อแถว (แถวหน้า 1 แถว แถวหลัง 1 แถว)
+		FloorThickness = 1,
+		WallHeight = 8,
+		WallThickness = 0.8,
+		DoorWidth = 6,
+		DoorHeight = 6.5,
+		RoofRise = 6, -- ความสูงสันหลังคาเหนือขอบล่าง (ยิ่งมากยิ่งชัน)
+		RoofOverhang = 2, -- ชายคายื่นออกไปด้านหน้า/หลัง
+		RoofGableOverhang = 1.5, -- ชายคายื่นออกด้านข้าง
+		RoofThickness = 0.7,
+		RoofSink = 0.8, -- ขอบล่างหลังคาต่ำกว่าหัวผนังเท่านี้ (ไม่ให้มีช่องว่างใต้ชายคา)
+		GableLayers = 5, -- จำนวนชั้นบล็อกอุดหน้าจั่ว (ยิ่งมากยิ่งเรียบ)
+		RidgeThickness = 0.9, -- สันหลังคา
+		FinialSize = Vector3.new(0.8, 3.5, 0.8), -- ปลายสันหลังคางอนขึ้นทั้งสองข้าง
+		FinialTiltDegrees = 25,
+		StepCount = 4, -- ขั้นบันไดหน้าประตู (ความสูงต่อขั้น = (ใต้ถุน+พื้น) ÷ จำนวนขั้น)
+		StepDepth = 1.5,
+		StepWidth = 8,
+		WallColor = Color3.fromRGB(150, 100, 55),
+		FloorColor = Color3.fromRGB(120, 82, 46),
+		PostColor = Color3.fromRGB(95, 62, 34),
+		StepColor = Color3.fromRGB(135, 92, 52),
+		RoofColor = Color3.fromRGB(150, 45, 28), -- กระเบื้องแดงเข้ม
+		FinialColor = Color3.fromRGB(205, 160, 60),
+		-- ป้ายชื่อลอยเหนือหลังคา
+		LabelText = "กุฏิ",
+		LabelSize = UDim2.fromOffset(110, 36),
+		LabelAbove = 5, -- ลอยเหนือสันหลังคาเท่านี้
+		LabelMaxDistance = 250,
+		LabelAlwaysOnTop = true, -- ป้ายเล็ก ๆ จึงเปิดให้เห็นทะลุต้นไม้/หญ้าได้
+		-- เสาแสงสีเหลืองจาง ๆ ให้เห็นกุฏิจากไกล (Part นีออน ไม่ชน ไม่ถูกกระสุน)
+		BeamEnabled = true,
+		BeamHeight = 250,
+		BeamWidth = 3,
+		BeamTransparency = 0.8,
+		BeamColor = Color3.fromRGB(255, 230, 110),
 	},
 
 	-- ห้องรอ: แท่นลอยฟ้านอกแมพ + หนังสติ๊กยักษ์ (เซิร์ฟเวอร์สร้างเองถ้าไม่มี Workspace.Lobby)
@@ -418,9 +520,8 @@ local Config = {
 
 	-- พระที่กุฏิ (NPC ใจดี ไม่ถูกโจมตี ลิงไม่สนใจ)
 	Monk = {
-		Name = "Monk", -- ชื่อโมเดลใน Workspace.MissionObjects · ถ้าเจ้าของทำโมเดลชื่อนี้เอง ระบบใช้ของเจ้าของ
-		OffsetFromKuti = Vector3.new(8, 0, 8), -- ยืนห่างจุดกุฏิเท่านี้ (แล้วยิงเรย์ลงพื้น)
-		RaycastUp = 60, -- ยิงเรย์หาพื้นจากสูงกว่าจุดกุฏิเท่านี้ (ไม่เกาะหลังคา)
+		Name = "Monk", -- ชื่อโมเดลใน Workspace.MapObjects (สร้างตั้งแต่เริ่มเซิร์ฟเวอร์) · ถ้าเจ้าของทำโมเดลชื่อนี้เอง ระบบใช้ของเจ้าของ
+		StepsGapStuds = 3, -- พระยืนหน้าบันไดกุฏิ ห่างจากขั้นล่างสุดเท่านี้ (ตำแหน่ง = กลางกุฏิ + ครึ่งความลึก + บันได + ระยะนี้ ทางใต้)
 		OfferRange = 14, -- คนถือตะกร้ายืนห่างพระไม่เกินกี่ stud ถึงถวายได้
 		OfferMinIntervalSeconds = 0.5,
 		LabelText = "พระ",

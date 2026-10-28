@@ -2,13 +2,16 @@
 -- Monk: พระที่กุฏิ (NPC สร้างจาก Part ง่าย ๆ สุภาพ ไม่มีอาวุธ ไม่มีเลือด)
 -- - ไม่ถูกโจมตี: ไม่ติด tag "Monkey" · ไม่มี Humanoid · Part ทุกชิ้น CanQuery = false (กระสุนทะลุ ไม่โดนเป็นเป้า)
 -- - ลิงเลือกเป้าจากผู้เล่นเท่านั้น (ดู Monkeys.collectPlayers) จึงไม่สนใจพระ
--- - ถ้าเจ้าของทำโมเดลชื่อ Config.Monk.Name ไว้ใน Workspace.MissionObjects เอง จะใช้ของเจ้าของ (ไม่สร้างทับ)
+-- - อยู่ใน Workspace.MapObjects (โฟลเดอร์ถาวร ไม่ถูกล้างตอนจบภารกิจ) · สร้างตั้งแต่เริ่มเซิร์ฟเวอร์ (Monk.ensure) ยืนหน้าบันไดกุฏิ
+-- - ถ้าเจ้าของทำโมเดลชื่อ Config.Monk.Name ไว้ใน Workspace.MapObjects เอง จะใช้ของเจ้าของ (ไม่สร้างทับ)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local MapSetup = require(script.Parent.MapSetup)
 
 local MonkCfg = Config.Monk
+local KutiCfg = Config.Kuti
 
 local Monk = {}
 
@@ -145,14 +148,14 @@ function Monk.build(parent: Instance, groundPosition: Vector3): Model
 	return model
 end
 
--- โมเดลพระที่มีอยู่แล้วใน parent (ถ้ามี)
-function Monk.find(parent: Instance): Instance?
-	return parent:FindFirstChild(MonkCfg.Name)
+-- โมเดลพระที่มีอยู่แล้วใน Workspace.MapObjects (ถ้ามี)
+function Monk.find(): Instance?
+	return MapSetup.getObjectsFolder():FindFirstChild(MonkCfg.Name)
 end
 
 -- ตำแหน่งพระ (กึ่งกลางโมเดล) · nil ถ้ายังไม่มี
-function Monk.positionOf(parent: Instance): Vector3?
-	local inst = parent:FindFirstChild(MonkCfg.Name)
+function Monk.positionOf(): Vector3?
+	local inst = Monk.find()
 	if inst == nil then
 		return nil
 	end
@@ -162,6 +165,31 @@ function Monk.positionOf(parent: Instance): Vector3?
 		return inst.Position
 	end
 	return nil
+end
+
+-- ให้มีพระยืนหน้าบันไดกุฏิ (ทางใต้ของจุด Kuti) ติดพื้น Terrain · ไม่สร้างซ้ำถ้ามีอยู่แล้ว
+function Monk.ensure()
+	if Monk.find() ~= nil then
+		return
+	end
+	local kuti = MapSetup.getMarkerPosition("Kuti")
+	if kuti == nil then
+		warn(
+			"[Monk] ไม่พบจุดกุฏิ (MapMarkers.Kuti) — ยังสร้างพระไม่ได้ ถวายอาหารไม่ได้"
+		)
+		return
+	end
+	local x = kuti.X
+	local z = kuti.Z + KutiCfg.Depth / 2 + KutiCfg.StepCount * KutiCfg.StepDepth + MonkCfg.StepsGapStuds
+	local ground = MapSetup.groundOnTerrain(x, z)
+	if ground == nil then
+		-- เรย์ไม่โดน Terrain → ใช้ความสูงจุดกุฏิ พระอาจลอย/จม
+		warn(
+			"[Monk] เรย์หาพื้นให้พระไม่โดน Terrain — ใช้ความสูงของจุดกุฏิแทน ตรวจตำแหน่งพระ"
+		)
+		ground = Vector3.new(x, kuti.Y, z)
+	end
+	Monk.build(MapSetup.getObjectsFolder(), ground)
 end
 
 return Monk

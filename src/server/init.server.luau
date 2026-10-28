@@ -1,6 +1,12 @@
 --!strict
 -- จุดเริ่มต้นฝั่งเซิร์ฟเวอร์: เปิดระบบข้อมูลผู้เล่นก่อน แล้วค่อยเปิดร้านค้า ห้องรอ และระบบต่อสู้
 
+-- MapSetup ต้องมาก่อนทุกอย่าง: สร้างจุดสำคัญ (MapMarkers) + กุฏิ ที่ Mission / Monkeys อ่านตอนเริ่ม
+local MapSetup = require(script.MapSetup)
+local Monk = require(script.Monk)
+MapSetup.run()
+Monk.ensure() -- พระยืนหน้ากุฏิตั้งแต่เริ่มเซิร์ฟเวอร์ (ไม่รอยิงหนังสติ๊ก)
+
 local PlayerData = require(script.PlayerData)
 local Shop = require(script.Shop)
 local Mission = require(script.Mission)

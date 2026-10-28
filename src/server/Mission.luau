@@ -113,14 +113,12 @@ local function getMissionFolder(): Folder
 	return Carry.getFolder()
 end
 
--- ล้างของภารกิจ (ตะกร้า ถุงเงิน ขนม ฯลฯ) · พระ (Monk) อยู่ต่อข้ามภารกิจ ไม่ต้องสร้างใหม่ทุกรอบ
+-- ล้างของภารกิจ (ตะกร้า ถุงเงิน ขนม ฯลฯ) ใน Workspace.MissionObjects · พระและกุฏิอยู่ใน Workspace.MapObjects จึงไม่ถูกล้าง
 -- Carry.clearAll ปล่อยของจากมือคนถือทุกคน (เคลียร์ carrying) ก่อนลบ
 local function clearMissionObjects()
 	Carry.clearAll()
 	for _, child in getMissionFolder():GetChildren() do
-		if child.Name ~= MonkCfg.Name then
-			child:Destroy()
-		end
+		child:Destroy()
 	end
 end
 
@@ -193,7 +191,7 @@ end
 
 -- อ่านตำแหน่งจุดสำคัญจาก Workspace.MapMarkers (เซิร์ฟเวอร์เห็นครบ ไม่ติด StreamingEnabled)
 local function loadMarkers()
-	local folder = Workspace:WaitForChild("MapMarkers", MissionCfg.MarkerWaitSeconds)
+	local folder = Workspace:WaitForChild(Config.Map.MarkersFolderName, MissionCfg.MarkerWaitSeconds)
 	if folder == nil then
 		warn(
 			"[Mission] ไม่พบ Workspace.MapMarkers — แผนที่ห้องรอจะไม่มีจุดสำคัญ และจุดลงเริ่มต้นใช้กลางแมพ"
@@ -394,29 +392,9 @@ local function prepareBasket(landing: Vector3, pouchPosition: Vector3, facing: V
 	}
 end
 
--- พระที่กุฏิ: ถ้าเจ้าของยังไม่มีโมเดล Workspace.MissionObjects.Monk ให้สร้างเอง ยืนข้างจุดกุฏิ ติดพื้น
+-- พระสร้างตั้งแต่เริ่มเซิร์ฟเวอร์ (init.server) · เรียกซ้ำตอนเริ่มภารกิจเผื่อมีใครลบพระทิ้ง (ไม่สร้างซ้ำถ้ามีอยู่แล้ว)
 local function ensureMonk()
-	local folder = getMissionFolder()
-	if Monk.find(folder) ~= nil then
-		return
-	end
-	local kuti = markerPositions["Kuti"]
-	if kuti == nil then
-		warn(
-			"[Mission] ไม่พบจุดกุฏิ (MapMarkers.Kuti) — ยังสร้างพระไม่ได้ ถวายอาหารไม่ได้"
-		)
-		return
-	end
-	local x, z = kuti.X + MonkCfg.OffsetFromKuti.X, kuti.Z + MonkCfg.OffsetFromKuti.Z
-	local ground = groundHit(x, z, kuti.Y + MonkCfg.RaycastUp)
-	if ground == nil then
-		-- เรย์ไม่โดนพื้น (เช่น terrain ยังไม่โหลด/จุดกุฏิอยู่นอกแมพ) → ใช้ความสูงจุดกุฏิ พระอาจลอย/จม
-		warn(
-			"[Mission] เรย์หาพื้นให้พระไม่โดนอะไร — ใช้ความสูงของจุดกุฏิแทน ตรวจตำแหน่งพระ"
-		)
-		ground = Vector3.new(x, kuti.Y, z)
-	end
-	Monk.build(folder, ground)
+	Monk.ensure()
 end
 
 -- ทำงานในเธรดแยก: ย้ายเข้าถุง → รอ → บินตามโค้ง → ลงพื้น → เข้าภารกิจ
@@ -683,7 +661,7 @@ local function onOfferFood(player: Player)
 		return
 	end
 	local root = rootOf(player)
-	local monkPosition = Monk.positionOf(getMissionFolder())
+	local monkPosition = Monk.positionOf()
 	if root == nil or monkPosition == nil then
 		return
 	end
@@ -791,7 +769,7 @@ end
 -- จุดปลอดภัยให้ของที่ตกโลก/หายไปกลับมา: ถวายแล้ว = ข้างพระ (ถุงเงิน/ขนม) · ยังไม่ถวาย = จุดลง (ตะกร้า)
 function Mission.getSafeSpot(): Vector3?
 	if offered then
-		local monkPosition = Monk.positionOf(getMissionFolder())
+		local monkPosition = Monk.positionOf()
 		if monkPosition ~= nil then
 			return monkPosition
 		end

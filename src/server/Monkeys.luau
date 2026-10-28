@@ -432,7 +432,7 @@ end
 
 local function loadNests()
 	nests = {}
-	local markers = Workspace:WaitForChild("MapMarkers", 10)
+	local markers = Workspace:WaitForChild(Config.Map.MarkersFolderName, 10)
 	if markers == nil then
 		warn(
 			"[Monkeys] ไม่พบ workspace.MapMarkers — ยังไม่มีรังลิง (วาง Part ชื่อ Nest1..Nest4 ในโฟลเดอร์ MapMarkers)"

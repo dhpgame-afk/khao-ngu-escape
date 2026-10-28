@@ -4,19 +4,21 @@
 -- รันซ้ำได้: จุดที่มีอยู่แล้วจะไม่สร้างทับ (ลบจุดไหนทิ้งแล้วรันใหม่ = วางจุดนั้นใหม่ที่ค่าเริ่มต้น)
 -- พิกัดอิงผังใน mockups/wireframe.html · กุฏิอยู่กลางแมพ (0,0) · ทิศเหนือ = Z ติดลบ
 
-local MARKERS = {
-	{ name = "Kuti", label = "กุฏิ", x = 0, z = 0, color = Color3.fromRGB(255, 200, 40), size = Vector3.new(24, 4, 24) },
-	{ name = "Nest1", label = "รังลิง 1", x = -186, z = -98, color = Color3.fromRGB(150, 90, 40), size = Vector3.new(16, 4, 16) },
-	{ name = "Nest2", label = "รังลิง 2", x = 186, z = -104, color = Color3.fromRGB(150, 90, 40), size = Vector3.new(16, 4, 16) },
-	{ name = "Nest3", label = "รังลิง 3", x = -138, z = 130, color = Color3.fromRGB(150, 90, 40), size = Vector3.new(16, 4, 16) },
-	{ name = "Nest4", label = "รังลิง 4", x = 138, z = 117, color = Color3.fromRGB(150, 90, 40), size = Vector3.new(16, 4, 16) },
-	{ name = "RocketPad", label = "ฐานบั้งไฟ", x = 318, z = 195, color = Color3.fromRGB(230, 60, 60), size = Vector3.new(30, 4, 30) },
-}
+-- หมายเหตุ: เซิร์ฟเวอร์ (src/server/MapSetup.luau) สร้างจุดที่ยังไม่มีให้อัตโนมัติทุกครั้งที่เริ่มเกมอยู่แล้ว (แบบมองไม่เห็น)
+-- สคริปต์นี้จึงใช้เฉพาะตอนอยากวางจุดแบบ "มองเห็นในโหมดแก้ไข" (แท่งสี+ป้าย) เพื่อลากย้ายใน Studio
+-- ตำแหน่งเริ่มต้นอ่านจาก Config.Map.Markers (ต้องซิงก์ Rojo อยู่ ไม่งั้น require ไม่เจอ) — แก้ตัวเลขที่ Config ที่เดียว
 
-local folder = workspace:FindFirstChild("MapMarkers")
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+local MARKERS = {}
+for _, name in Config.Map.MarkerNames do
+	local def = (Config.Map.Markers :: any)[name]
+	table.insert(MARKERS, { name = name, label = def.label, x = def.x, z = def.z, color = def.color, size = def.size })
+end
+
+local folder = workspace:FindFirstChild(Config.Map.MarkersFolderName)
 if not folder then
 	folder = Instance.new("Folder")
-	folder.Name = "MapMarkers"
+	folder.Name = Config.Map.MarkersFolderName
 	folder.Parent = workspace
 end
 
