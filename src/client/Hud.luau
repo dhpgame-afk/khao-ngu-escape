@@ -30,6 +30,9 @@ export type Refs = {
 local FONT = Enum.Font.GothamBold
 local DARK = Color3.fromRGB(25, 28, 33)
 local WHITE = Color3.fromRGB(255, 255, 255)
+-- แถวบนสุด (เลือด/เงิน) ต้องอยู่ใต้แถบปุ่มของ Roblox (โลโก้/เมนู/แชต) เพราะ IgnoreGuiInset = true
+-- ทำให้ y=0 คือขอบจอจริง · จอแนวนอนบนมือถือแถบนี้สูง ~12% ของจอ
+local TOP_ROW_Y = 0.13
 
 local function formatTime(seconds: number): string
 	local s = math.max(0, math.ceil(seconds))
@@ -97,6 +100,7 @@ local function makeButton(
 	corner.Parent = button
 
 	local stroke = Instance.new("UIStroke")
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border -- ขอบปุ่มเท่านั้น ไม่ให้ไปตีเส้นรอบตัวอักษร
 	stroke.Color = WHITE
 	stroke.Transparency = 0.5
 	stroke.Thickness = 2
@@ -123,7 +127,7 @@ function Hud.create(): Refs
 	-- แถบเลือด (บนซ้าย)
 	local hpBack = Instance.new("Frame")
 	hpBack.Name = "HealthBar"
-	hpBack.Position = UDim2.fromScale(0.02, 0.03)
+	hpBack.Position = UDim2.fromScale(0.02, TOP_ROW_Y)
 	hpBack.Size = UDim2.fromScale(0.28, 0.06)
 	hpBack.BackgroundColor3 = DARK
 	hpBack.BackgroundTransparency = 0.3
@@ -146,7 +150,7 @@ function Hud.create(): Refs
 
 	-- เงิน (บนขวา)
 	local moneyLabel =
-		makeLabel(gui, "Money", "เงิน 0", UDim2.fromScale(0.70, 0.03), UDim2.fromScale(0.28, 0.06))
+		makeLabel(gui, "Money", "เงิน 0", UDim2.fromScale(0.70, TOP_ROW_Y), UDim2.fromScale(0.28, 0.06))
 	moneyLabel.TextXAlignment = Enum.TextXAlignment.Right
 
 	-- จุดเล็งกลางจอ (มือถือไม่มีเมาส์)
@@ -217,6 +221,7 @@ function Hud.create(): Refs
 		p.Parent = b
 		local s = Instance.new("UIStroke")
 		s.Name = "Stroke"
+		s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border -- ขอบปุ่มเท่านั้น ไม่ให้บังตัวอักษร
 		s.Color = WHITE
 		s.Transparency = 0.6
 		s.Thickness = 2
