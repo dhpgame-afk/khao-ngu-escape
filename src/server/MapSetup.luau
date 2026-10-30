@@ -207,30 +207,46 @@ local function addBlock(
 	return part
 end
 
--- ความสูงต่ำสุดของพื้นดินใต้รอยเท้ากุฏิ (สุ่มตัวอย่างตาราง 3×3 รวมมุมทั้ง 4) · nil ถ้าเรย์ไม่โดนเลย
-local function lowestGroundUnderFootprint(x: number, z: number): number?
+-- ความสูงต่ำสุด/สูงสุดของพื้นดินใต้รอยเท้ากุฏิ (สุ่มตัวอย่างตาราง 5×5 รวมมุมทั้ง 4 + ตรงกลาง) · nil ถ้าเรย์ไม่โดนเลย
+local function groundRangeUnderFootprint(x: number, z: number): (number?, number?)
 	local lowest: number? = nil
-	for _, fx in { -0.5, 0, 0.5 } do
-		for _, fz in { -0.5, 0, 0.5 } do
+	local highest: number? = nil
+	for _, fx in { -0.5, -0.25, 0, 0.25, 0.5 } do
+		for _, fz in { -0.5, -0.25, 0, 0.25, 0.5 } do
 			local ground = MapSetup.groundOnTerrain(x + fx * KutiCfg.Width, z + fz * KutiCfg.Depth)
-			if ground ~= nil and (lowest == nil or ground.Y < lowest) then
-				lowest = ground.Y
+			if ground ~= nil then
+				if lowest == nil or ground.Y < lowest then
+					lowest = ground.Y
+				end
+				if highest == nil or ground.Y > highest then
+					highest = ground.Y
+				end
 			end
 		end
 	end
-	return lowest
+	return lowest, highest
+end
+
+-- ตำแหน่ง Z (โลก) ของปลายล่างสุดของบันไดกุฏิ · nil ถ้ากุฏิไม่ได้สร้างด้วยโค้ด (เจ้าของทำเอง)
+-- Monk ใช้วางพระให้ยืนพ้นบันไดเสมอ ไม่ว่าบันไดจะยาวเท่าไร (ขึ้นกับความสูงพื้นกุฏิ/ความลาดของเนิน)
+local builtStairFootZ: number? = nil
+function MapSetup.getKutiStairFootZ(): number?
+	return builtStairFootZ
 end
 
 local function buildKuti(parent: Instance, kutiMarker: Vector3): Model
 	local x, z = kutiMarker.X, kutiMarker.Z
-	local lowestY = lowestGroundUnderFootprint(x, z)
-	if lowestY == nil then
+	local sampledLowest, sampledHighest = groundRangeUnderFootprint(x, z)
+	if sampledLowest == nil or sampledHighest == nil then
 		warn(
 			"[MapSetup] เรย์ไม่โดน Terrain ใต้กุฏิ — ใช้ความสูงของจุด Kuti แทน กุฏิอาจลอย/จม"
 		)
-		lowestY = kutiMarker.Y
 	end
-	local base = CFrame.new(x, lowestY, z) -- พื้นของกุฏิอิงจุดต่ำสุด · แกน +Z = หน้าประตู (ใต้)
+	local lowestY: number = sampledLowest or kutiMarker.Y
+	local highestY: number = sampledHighest or kutiMarker.Y
+	-- อิง "จุดสูงสุด" ของพื้นใต้รอยเท้า (เดิมอิงจุดต่ำสุด → ด้านเนินสูงฝังดิน) · แกน +Z = หน้าประตู (ใต้)
+	-- พื้นกุฏิ = จุดสูงสุด + ใต้ถุน + ยกเพิ่ม (ExtraLift) จึงลอยพ้นดินทุกมุมแน่นอน
+	local base = CFrame.new(x, highestY, z)
 	local halfW, halfD = KutiCfg.Width / 2, KutiCfg.Depth / 2
 	local wallT = KutiCfg.WallThickness
 
@@ -239,24 +255,28 @@ local function buildKuti(parent: Instance, kutiMarker: Vector3): Model
 	-- ให้ client เห็นกุฏิตลอด (StreamingEnabled) ไม่งั้นเสาแสง/ป้ายหายตอนอยู่ไกล
 	model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 
-	-- ความสูงพื้นกุฏิ (สัมพัทธ์กับ lowestY)
-	local floorTop = KutiCfg.StiltHeight + KutiCfg.FloorThickness
+	-- ความสูงพื้นกุฏิ (สัมพัทธ์กับ highestY = จุดสูงสุดของพื้นดินใต้กุฏิ)
+	local floorBottom = KutiCfg.StiltHeight + KutiCfg.ExtraLift
+	local floorTop = floorBottom + KutiCfg.FloorThickness
 	local wallTop = floorTop + KutiCfg.WallHeight
+	local lowestRel = lowestY - highestY -- ≤ 0
 
-	-- ใต้ถุน: เสา 2 แถว (หน้า/หลัง) ฝังลงดินเผื่อพื้นลาด
+	-- ใต้ถุน: เสา 2 แถว (หน้า/หลัง) ยาวลงถึงพื้นดินจริง ณ จุดของเสาแต่ละต้น แล้วฝังเพิ่ม (StiltBury) กันลอยเมื่อพื้นลาด
 	local stiltSize = KutiCfg.StiltSize
-	local stiltLength = KutiCfg.StiltHeight + KutiCfg.StiltBury
-	local stiltCenterY = (KutiCfg.StiltHeight - KutiCfg.StiltBury) / 2
 	for row = -1, 1, 2 do
 		for i = 1, KutiCfg.StiltCountX do
 			local t = if KutiCfg.StiltCountX > 1 then (i - 1) / (KutiCfg.StiltCountX - 1) else 0.5
 			local px = -halfW + stiltSize / 2 + t * (KutiCfg.Width - stiltSize)
 			local pz = row * (halfD - stiltSize / 2)
+			local stiltGround = MapSetup.groundOnTerrain(x + px, z + pz)
+			local groundRel = if stiltGround ~= nil then stiltGround.Y - highestY else lowestRel
+			local stiltBottom = groundRel - KutiCfg.StiltBury
+			local stiltLength = floorBottom - stiltBottom
 			addBlock(
 				model,
 				"Stilt",
 				Vector3.new(stiltSize, stiltLength, stiltSize),
-				base * CFrame.new(px, stiltCenterY, pz),
+				base * CFrame.new(px, (floorBottom + stiltBottom) / 2, pz),
 				KutiCfg.PostColor,
 				Enum.Material.Wood
 			)
@@ -268,7 +288,7 @@ local function buildKuti(parent: Instance, kutiMarker: Vector3): Model
 		model,
 		"Floor",
 		Vector3.new(KutiCfg.Width, KutiCfg.FloorThickness, KutiCfg.Depth),
-		base * CFrame.new(0, KutiCfg.StiltHeight + KutiCfg.FloorThickness / 2, 0),
+		base * CFrame.new(0, floorBottom + KutiCfg.FloorThickness / 2, 0),
 		KutiCfg.FloorColor,
 		Enum.Material.WoodPlanks
 	)
@@ -316,14 +336,30 @@ local function buildKuti(parent: Instance, kutiMarker: Vector3): Model
 		Enum.Material.Wood
 	)
 
-	-- บันไดหน้าประตู: ขั้นเป็นแท่งยาวลงถึงพื้นดิน (พื้นลาดก็ไม่มีช่องว่างใต้ขั้น)
-	local stepRise = floorTop / KutiCfg.StepCount
-	for i = 1, KutiCfg.StepCount do
+	-- บันไดหน้าประตู (ผู้เล่นเดินขึ้นไปถวายอาหาร/เข้ากุฏิ):
+	-- จำนวนขั้นคิดจากความสูงพื้นกุฏิเหนือพื้นดินที่ปลายบันได ให้แต่ละขั้นสูงไม่เกิน StepMaxRise (เดินขึ้นได้ ไม่ต้องกระโดด)
+	-- ขั้นบนสุดชิดพื้นกุฏิ ขั้นล่างสุดสูงจากดินหนึ่งขั้น · ขั้นเป็นแท่งยาวลงถึงพื้นดิน (พื้นลาดก็ไม่มีช่องว่างใต้ขั้น)
+	local function footGroundRel(count: number): number
+		local foot = MapSetup.groundOnTerrain(x, z + halfD + count * KutiCfg.StepDepth)
+		return if foot ~= nil then foot.Y - highestY else lowestRel
+	end
+	local stepCount = KutiCfg.StepCount
+	for _ = 1, 3 do -- ปลายบันไดขยับตามจำนวนขั้น (พื้นลาด) จึงวนคำนวณซ้ำให้นิ่ง
+		local rise = math.max(floorTop - footGroundRel(stepCount), 0)
+		local needed = math.clamp(math.ceil(rise / KutiCfg.StepMaxRise) - 1, KutiCfg.StepCount, KutiCfg.StepMaxCount)
+		if needed == stepCount then
+			break
+		end
+		stepCount = needed
+	end
+	local stepRise = math.max(floorTop - footGroundRel(stepCount), 1) / (stepCount + 1)
+	builtStairFootZ = z + halfD + stepCount * KutiCfg.StepDepth
+	for i = 1, stepCount do
 		local stepTop = floorTop - i * stepRise
 		local stepZ = halfD + (i - 0.5) * KutiCfg.StepDepth
 		local ground = MapSetup.groundOnTerrain(x, z + stepZ)
-		local groundRel = if ground ~= nil then ground.Y - lowestY else -KutiCfg.StiltBury
-		local stepBottom = math.min(0, groundRel) - 1
+		local groundRel = if ground ~= nil then ground.Y - highestY else lowestRel
+		local stepBottom = math.min(groundRel, stepTop - 0.5) - 1
 		addBlock(
 			model,
 			"Step",

@@ -205,7 +205,9 @@ function MissionHud.start(hud: Hud.Refs): Api
 		-- 2) ถวายอาหาร: ถือตะกร้า ยังไม่เคยถวาย และอยู่ใกล้พระ
 		if kind == "FoodBasket" then
 			if not offered then
-				local monk = folder:FindFirstChild(Config.Monk.Name)
+				-- พระอยู่ใน MapObjects (โฟลเดอร์ถาวร) ไม่ใช่ MissionObjects ที่เก็บของภารกิจ
+				local mapFolder = Workspace:FindFirstChild(Config.Map.ObjectsFolderName)
+				local monk = if mapFolder ~= nil then mapFolder:FindFirstChild(Config.Monk.Name) else nil
 				local monkPos = if monk ~= nil then pivotPositionOf(monk) else nil
 				if monkPos ~= nil and (monkPos - root.Position).Magnitude <= Config.Monk.OfferRange then
 					return offerAction

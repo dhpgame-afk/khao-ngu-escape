@@ -57,6 +57,8 @@ end
 function Monk.build(parent: Instance, groundPosition: Vector3): Model
 	local model = Instance.new("Model")
 	model.Name = MonkCfg.Name
+	-- ให้ client เห็นพระเสมอ (StreamingEnabled) ไม่งั้นปุ่มถวายอาหารไม่โผล่เพราะ client หาพระไม่เจอ
+	model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	local base = CFrame.lookAt(groundPosition, groundPosition + Vector3.new(0, 0, 1))
 
 	local robeHeight = ROBE_SIZE.Y
@@ -180,7 +182,10 @@ function Monk.ensure()
 		return
 	end
 	local x = kuti.X
-	local z = kuti.Z + KutiCfg.Depth / 2 + KutiCfg.StepCount * KutiCfg.StepDepth + MonkCfg.StepsGapStuds
+	-- ยืนบนพื้นดินพ้นปลายบันไดจริงของกุฏิที่โค้ดสร้าง (ผู้เล่นยืนถึงได้แน่) · กุฏิเจ้าของทำเอง → ใช้สูตรตามค่าเริ่มต้น
+	local stairFootZ = MapSetup.getKutiStairFootZ()
+		or (kuti.Z + KutiCfg.Depth / 2 + KutiCfg.StepCount * KutiCfg.StepDepth)
+	local z = stairFootZ + MonkCfg.StepsGapStuds
 	local ground = MapSetup.groundOnTerrain(x, z)
 	if ground == nil then
 		-- เรย์ไม่โดน Terrain → ใช้ความสูงจุดกุฏิ พระอาจลอย/จม
