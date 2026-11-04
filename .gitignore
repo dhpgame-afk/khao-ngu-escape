@@ -1,6 +1,4 @@
-# ไฟล์สำรองแมพจาก Studio (ใหญ่ ไม่เก็บใน git)
-map-backups/
-*.rbxl
+# ไฟล์ล็อกของ Studio (ไม่ต้องเก็บ)
 *.rbxl.lock
 *.rbxlx.lock
 
